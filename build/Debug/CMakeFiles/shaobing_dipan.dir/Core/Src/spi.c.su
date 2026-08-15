@@ -1,0 +1,4 @@
+D:/CODEX/shaobing_dipan/Core/Src/spi.c:33:6:MX_SPI1_Init	8	static
+D:/CODEX/shaobing_dipan/Core/Src/spi.c:65:6:MX_SPI2_Init	8	static
+D:/CODEX/shaobing_dipan/Core/Src/spi.c:97:6:HAL_SPI_MspInit	56	static
+D:/CODEX/shaobing_dipan/Core/Src/spi.c:198:6:HAL_SPI_MspDeInit	16	static

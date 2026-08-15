@@ -1,0 +1,5 @@
+D:/CODEX/shaobing_dipan/Device/dji_motor.c:11:13:DJI_Motor_Parse	24	static
+D:/CODEX/shaobing_dipan/Device/dji_motor.c:24:6:HAL_CAN_RxFifo0MsgPendingCallback	56	static
+D:/CODEX/shaobing_dipan/Device/dji_motor.c:43:19:DJI_Motor_SendChassisCurrent	72	static
+D:/CODEX/shaobing_dipan/Device/dji_motor.c:76:6:DJI_Motor_GetFeedback	24	static,ignoring_inline_asm
+D:/CODEX/shaobing_dipan/Device/dji_motor.c:94:9:DJI_Motor_IsOnline	40	static

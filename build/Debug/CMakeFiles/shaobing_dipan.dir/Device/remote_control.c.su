@@ -1,0 +1,6 @@
+D:/CODEX/shaobing_dipan/Device/remote_control.c:15:13:Remote_Control_Decode	56	static
+D:/CODEX/shaobing_dipan/Device/remote_control.c:38:6:Remote_Control_Init	16	static
+D:/CODEX/shaobing_dipan/Device/remote_control.c:44:6:Remote_Control_UART_IRQHandler	24	static
+D:/CODEX/shaobing_dipan/Device/remote_control.c:83:6:Remote_Control_Get	32	static,ignoring_inline_asm
+D:/CODEX/shaobing_dipan/Device/remote_control.c:101:9:Remote_Control_IsOnline	48	static
+D:/CODEX/shaobing_dipan/Device/remote_control.c:109:9:Remote_Control_DataValid	24	static

@@ -1,0 +1,101 @@
+#include "dji_motor.h"
+
+#define DJI_CHASSIS_COMMAND_ID 0x200U
+#define DJI_MOTOR1_FEEDBACK_ID 0x201U
+#define DJI_MOTOR4_FEEDBACK_ID 0x204U
+
+extern CAN_HandleTypeDef hcan1;
+
+static volatile dji_motor_feedback_t g_motor[DJI_CHASSIS_MOTOR_COUNT];
+
+static void DJI_Motor_Parse(uint8_t index, const uint8_t data[8])
+{
+    volatile dji_motor_feedback_t *motor = &g_motor[index];
+
+    motor->last_ecd = motor->ecd;
+    motor->ecd = (uint16_t)((data[0] << 8) | data[1]);
+    motor->speed_rpm = (int16_t)((data[2] << 8) | data[3]);
+    motor->given_current = (int16_t)((data[4] << 8) | data[5]);
+    motor->temperature = data[6];
+    motor->error_code = data[7];
+    motor->update_tick_ms = HAL_GetTick();
+}
+
+void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
+{
+    CAN_RxHeaderTypeDef header;
+    uint8_t data[8];
+
+    if ((hcan != &hcan1) ||
+        (HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &header, data) != HAL_OK))
+    {
+        return;
+    }
+
+    if ((header.IDE == CAN_ID_STD) &&
+        (header.StdId >= DJI_MOTOR1_FEEDBACK_ID) &&
+        (header.StdId <= DJI_MOTOR4_FEEDBACK_ID))
+    {
+        DJI_Motor_Parse((uint8_t)(header.StdId - DJI_MOTOR1_FEEDBACK_ID), data);
+    }
+}
+
+HAL_StatusTypeDef DJI_Motor_SendChassisCurrent(CAN_HandleTypeDef *hcan,
+                                               int16_t motor1,
+                                               int16_t motor2,
+                                               int16_t motor3,
+                                               int16_t motor4)
+{
+    CAN_TxHeaderTypeDef header = {0};
+    uint32_t mailbox;
+    uint8_t data[8];
+    const int16_t current[4] = {motor1, motor2, motor3, motor4};
+    uint8_t i;
+
+    header.StdId = DJI_CHASSIS_COMMAND_ID;
+    header.IDE = CAN_ID_STD;
+    header.RTR = CAN_RTR_DATA;
+    header.DLC = 8;
+    header.TransmitGlobalTime = DISABLE;
+
+    for (i = 0; i < 4; i++)
+    {
+        data[i * 2] = (uint8_t)(current[i] >> 8);
+        data[i * 2 + 1] = (uint8_t)current[i];
+    }
+
+    /* 邮箱满时直接返回忙，避免 HAL 把“暂时无空邮箱”记录成参数错误。 */
+    if (HAL_CAN_GetTxMailboxesFreeLevel(hcan) == 0U)
+    {
+        return HAL_BUSY;
+    }
+
+    return HAL_CAN_AddTxMessage(hcan, &header, data, &mailbox);
+}
+
+void DJI_Motor_GetFeedback(uint8_t index, dji_motor_feedback_t *feedback)
+{
+    uint32_t primask;
+
+    if ((index >= DJI_CHASSIS_MOTOR_COUNT) || (feedback == NULL))
+    {
+        return;
+    }
+
+    primask = __get_PRIMASK();
+    __disable_irq();
+    *feedback = g_motor[index];
+    if (primask == 0U)
+    {
+        __enable_irq();
+    }
+}
+
+uint8_t DJI_Motor_IsOnline(uint8_t index, uint32_t now_ms, uint32_t timeout_ms)
+{
+    dji_motor_feedback_t feedback = {0};
+
+    DJI_Motor_GetFeedback(index, &feedback);
+    return (uint8_t)((feedback.update_tick_ms != 0U) &&
+                     ((uint32_t)(now_ms - feedback.update_tick_ms) <= timeout_ms));
+}

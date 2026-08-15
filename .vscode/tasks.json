@@ -1,0 +1,45 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "CMake: configure Debug",
+            "type": "shell",
+            "command": "C:/Users/abcd1/AppData/Local/stm32cube/bundles/cmake/4.2.3+st.1/bin/cmake.exe",
+            "args": [
+                "--preset",
+                "Debug"
+            ],
+            "problemMatcher": [],
+            "options": {
+                "cwd": "D:/CODEX/shaobing_dipan",
+                "env": {
+                    "PATH": "C:/Users/abcd1/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin;C:/Users/abcd1/AppData/Local/stm32cube/bundles/ninja/1.13.2+st.1/bin;${env:PATH}"
+                }
+            }
+        },
+        {
+            "label": "CMake: build Debug",
+            "type": "shell",
+            "command": "C:/Users/abcd1/AppData/Local/stm32cube/bundles/cmake/4.2.3+st.1/bin/cmake.exe",
+            "args": [
+                "--build",
+                "--preset",
+                "Debug",
+                "--parallel"
+            ],
+            "dependsOn": "CMake: configure Debug",
+            "dependsOrder": "sequence",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": "$gcc",
+            "options": {
+                "cwd": "D:/CODEX/shaobing_dipan",
+                "env": {
+                    "PATH": "C:/Users/abcd1/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin;C:/Users/abcd1/AppData/Local/stm32cube/bundles/ninja/1.13.2+st.1/bin;${env:PATH}"
+                }
+            }
+        }
+    ]
+}

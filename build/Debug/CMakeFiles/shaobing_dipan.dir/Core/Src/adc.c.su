@@ -1,0 +1,4 @@
+D:/CODEX/shaobing_dipan/Core/Src/adc.c:31:6:MX_ADC1_Init	24	static
+D:/CODEX/shaobing_dipan/Core/Src/adc.c:78:6:MX_ADC3_Init	24	static
+D:/CODEX/shaobing_dipan/Core/Src/adc.c:125:6:HAL_ADC_MspInit	48	static
+D:/CODEX/shaobing_dipan/Core/Src/adc.c:163:6:HAL_ADC_MspDeInit	16	static

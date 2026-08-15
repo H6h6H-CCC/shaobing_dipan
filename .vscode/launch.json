@@ -1,0 +1,42 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "CMSIS-DAP: OpenOCD 调试",
+            "type": "cortex-debug",
+            "request": "launch",
+            "cwd": "D:/CODEX/shaobing_dipan",
+            "executable": "D:/CODEX/shaobing_dipan/build/Debug/shaobing_dipan.elf",
+            "preLaunchTask": "CMake: build Debug",
+            "servertype": "openocd",
+            "serverpath": "D:/openocd-20260302/OpenOCD-20260302-0.12.0/bin/openocd.exe",
+            "searchDir": [
+                "D:/openocd-20260302/OpenOCD-20260302-0.12.0/share/openocd/scripts"
+            ],
+            "configFiles": [
+                "interface/cmsis-dap.cfg",
+                "target/stm32f4x.cfg"
+            ],
+            "gdbPath": "C:/Users/abcd1/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/arm-none-eabi-gdb.exe",
+            "interface": "swd",
+            "runToEntryPoint": "main",
+            "showDevDebugOutput": "none"
+        },
+        {
+            "name": "ST-Link: SWD 调试",
+            "type": "cortex-debug",
+            "request": "launch",
+            "cwd": "D:/CODEX/shaobing_dipan",
+            "executable": "D:/CODEX/shaobing_dipan/build/Debug/shaobing_dipan.elf",
+            "preLaunchTask": "CMake: build Debug",
+            "servertype": "stlink",
+            "serverpath": "C:/Users/abcd1/AppData/Local/stm32cube/bundles/stlink-gdbserver/7.13.0+st.3/bin/ST-LINK_gdbserver.exe",
+            "stm32cubeprogrammer": "C:/Users/abcd1/AppData/Local/stm32cube/bundles/programmer/2.22.0+st.1/bin",
+            "gdbPath": "C:/Users/abcd1/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/arm-none-eabi-gdb.exe",
+            "device": "STM32F407IG",
+            "interface": "swd",
+            "runToEntryPoint": "main",
+            "showDevDebugOutput": "none"
+        }
+    ]
+}

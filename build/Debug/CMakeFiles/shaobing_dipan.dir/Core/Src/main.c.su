@@ -1,0 +1,6 @@
+D:/CODEX/shaobing_dipan/Core/Src/main.c:74:13:Watchdog_Init	16	static
+D:/CODEX/shaobing_dipan/Core/Src/main.c:106:13:Watchdog_Refresh	4	static
+D:/CODEX/shaobing_dipan/Core/Src/main.c:114:13:Debug_UART6_Print	392	static
+D:/CODEX/shaobing_dipan/Core/Src/main.c:191:5:main	8	static
+D:/CODEX/shaobing_dipan/Core/Src/main.c:292:6:SystemClock_Config	88	static
+D:/CODEX/shaobing_dipan/Core/Src/main.c:341:6:Error_Handler	4	static,ignoring_inline_asm
