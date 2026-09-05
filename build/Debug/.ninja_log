@@ -7,7 +7,7 @@
 175	982	8084859764363937	CMakeFiles/shaobing_dipan.dir/Core/Src/adc.c.obj	d4a2dd1b834f1b7a
 102	1034	8084859763626969	CMakeFiles/shaobing_dipan.dir/USB_DEVICE/App/usbd_desc.c.obj	ab73c9cfac42e728
 116	1173	8084859763776983	CMakeFiles/shaobing_dipan.dir/USB_DEVICE/App/usbd_cdc_if.c.obj	cb7bdf787d95ea32
-4	310	8084929278994175	CMakeFiles/shaobing_dipan.dir/Core/Src/main.c.obj	28e49a1ed2bcd188
+59	402	8084939673207560	CMakeFiles/shaobing_dipan.dir/Core/Src/main.c.obj	28e49a1ed2bcd188
 262	1232	8084859765230533	CMakeFiles/shaobing_dipan.dir/Core/Src/rtc.c.obj	af8aeeb346567dc6
 195	954	8084859764569328	CMakeFiles/shaobing_dipan.dir/Core/Src/can.c.obj	cd2b50ffb53f7e50
 217	1008	8084859764779096	CMakeFiles/shaobing_dipan.dir/Core/Src/dma.c.obj	51fc9228f91e7b51
@@ -27,7 +27,7 @@
 876	2149	8084859771386514	CMakeFiles/shaobing_dipan.dir/Device/remote_control.c.obj	99abf5a120ab34d2
 1034	1989	8084859772951841	CMakeFiles/shaobing_dipan.dir/Device/ist8310driver_middleware.c.obj	4e265a2b0de06df7
 954	2177	8084859772163936	CMakeFiles/shaobing_dipan.dir/Device/BMI088driver.c.obj	d7e6d4eca031a8a4
-97	407	8084934150289922	CMakeFiles/shaobing_dipan.dir/Application/chassis.c.obj	b2fd39c4784fd09d
+59	333	8084944891283189	CMakeFiles/shaobing_dipan.dir/Application/chassis.c.obj	b2fd39c4784fd09d
 921	2118	8084859771827093	CMakeFiles/shaobing_dipan.dir/Device/WIT_Gyro.c.obj	8b88384b226a1ea9
 982	1964	8084859772435776	CMakeFiles/shaobing_dipan.dir/Device/BMI088Middleware.c.obj	293f6d4e7bb2b549
 1265	2203	8084859775268373	cmake/stm32cubemx/CMakeFiles/STM32_Drivers.dir/__/__/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_rcc_ex.c.obj	828eb68bf9a8280c
@@ -62,15 +62,4 @@
 2084	3134	8084859783489675	cmake/stm32cubemx/CMakeFiles/STM32_Drivers.dir/__/__/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_i2c.c.obj	3ba3245d0f975715
 2395	3111	8084859786559146	cmake/stm32cubemx/CMakeFiles/USB_Device_Library.dir/__/__/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Src/usbd_cdc.c.obj	be9b33d81cfef588
 2229	3159	8084859784903363	cmake/stm32cubemx/CMakeFiles/STM32_Drivers.dir/__/__/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_tim.c.obj	7b4dc0330f868465
-407	811	8084934153392438	shaobing_dipan.elf	80b5d551041acb53
-105	424	8084935590649310	CMakeFiles/shaobing_dipan.dir/Application/chassis.c.obj	b2fd39c4784fd09d
-424	872	8084935593846399	shaobing_dipan.elf	80b5d551041acb53
-84	384	8084939673448962	CMakeFiles/shaobing_dipan.dir/Application/chassis.c.obj	b2fd39c4784fd09d
-59	402	8084939673207560	CMakeFiles/shaobing_dipan.dir/Core/Src/main.c.obj	28e49a1ed2bcd188
-402	807	8084939676628314	shaobing_dipan.elf	80b5d551041acb53
-61	355	8084942550246324	CMakeFiles/shaobing_dipan.dir/Application/chassis.c.obj	b2fd39c4784fd09d
-356	787	8084942553193773	shaobing_dipan.elf	80b5d551041acb53
-64	331	8084944224346883	CMakeFiles/shaobing_dipan.dir/Application/chassis.c.obj	b2fd39c4784fd09d
-331	743	8084944227008580	shaobing_dipan.elf	80b5d551041acb53
-59	333	8084944891283189	CMakeFiles/shaobing_dipan.dir/Application/chassis.c.obj	b2fd39c4784fd09d
 334	744	8084944894028174	shaobing_dipan.elf	80b5d551041acb53
