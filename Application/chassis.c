@@ -1,6 +1,7 @@
 #include "chassis.h"
 #include "dji_motor.h"
 #include "remote_control.h"
+#include "navigation.h"
 #include "pid.h"
 #include "can.h"
 
@@ -47,7 +48,7 @@
 #define CHASSIS_NO_OUTPUT_CURRENT        500
 #define CHASSIS_NO_OUTPUT_TIME_MS        500U
 
-/* 轮向测试：4 个 CAN 电机都以正转速低速运行。确认方向后改为 0U。 */
+/* 轮向测试：4个轮子按新车头方向低速滚动，电机转速符号由安装方向决定。 */
 #define CHASSIS_DIRECTION_TEST       0U
 #define CHASSIS_DIRECTION_TEST_RPM 300.0f
 
@@ -77,21 +78,22 @@ static pid_t g_speed_pid[4];
 static uint16_t g_stall_time_ms[4];
 static uint16_t g_no_output_time_ms[4];
 static uint32_t g_diagonal_test_elapsed_ms;
+static uint32_t g_navigation_entry_frame_count;
 
-/* 数组下标与 CAN 电机 ID 一一对应。 */
+/* 新车头相对原定义转180度；数组下标仍按CAN ID1～ID4排列。 */
 enum
 {
-    MOTOR_ID1_RIGHT_FRONT = 0,
-    MOTOR_ID2_RIGHT_REAR,
-    MOTOR_ID3_LEFT_REAR,
-    MOTOR_ID4_LEFT_FRONT
+    MOTOR_ID1_LEFT_REAR = 0,
+    MOTOR_ID2_LEFT_FRONT,
+    MOTOR_ID3_RIGHT_FRONT,
+    MOTOR_ID4_RIGHT_REAR
 };
 
 /*
- * 实车方向已确认：逻辑正方向统一表示轮子朝车头滚动。
- * ID1、ID2 安装方向取反，ID3、ID4 保持电机编码器原方向。
+ * 逻辑正方向统一表示轮子朝新车头滚动，因此四轮方向相对旧定义全部取反。
+ * ID1、ID2 保持电机编码器原方向，ID3、ID4 安装方向取反。
  */
-static const float g_motor_direction[4] = {-1.0f, -1.0f, 1.0f, 1.0f};
+static const float g_motor_direction[4] = {1.0f, 1.0f, -1.0f, -1.0f};
 
 static float Chassis_AbsFloat(float value)
 {
@@ -230,6 +232,10 @@ static uint8_t Chassis_AllMotorsOnline(uint32_t now_ms)
 void Chassis_Init(void)
 {
     uint8_t i;
+    /* 上电默认不允许导航，必须先收到左开关中档的有效遥控帧。 */
+    g_chassis_debug.control_source = CHASSIS_SOURCE_STOP;
+    g_chassis_debug.navigation_armed = 0U;
+    g_chassis_debug.navigation_waiting_frame = 0U;
     for (i = 0; i < 4; i++)
     {
         PID_Init(&g_speed_pid[i],
@@ -270,32 +276,93 @@ void Chassis_Stop(void)
 void Chassis_Update(void)
 {
     remote_control_t remote = {0};
+    navigation_command_t navigation;
+    chassis_control_source_t source = CHASSIS_SOURCE_STOP;
     dji_motor_feedback_t motor;
     float wheel_linear_mps[4];
     float target[4];
-    float vx;
-    float vy;
-    float wz;
-    uint32_t now_ms = HAL_GetTick();
+    float vx = 0.0f;
+    float vy = 0.0f;
+    float wz = 0.0f;
+    uint32_t now_ms;
+    uint8_t motors_online;
     uint8_t i;
 
     Remote_Control_Get(&remote);
-    g_chassis_debug.remote_online =
-        Remote_Control_IsOnline(now_ms, CHASSIS_REMOTE_TIMEOUT_MS);
+    Navigation_Get(&navigation);
+    now_ms = HAL_GetTick();
+    /* 在线状态与本次遥控快照使用同一时间戳，避免混用两帧数据。 */
+    g_chassis_debug.remote_online = (uint8_t)(
+        (remote.update_tick_ms != 0U) &&
+        ((uint32_t)(now_ms - remote.update_tick_ms) <= CHASSIS_REMOTE_TIMEOUT_MS));
+    g_chassis_debug.navigation_age_ms = (navigation.valid != 0U) ?
+        (uint32_t)(now_ms - navigation.update_tick_ms) : 0xFFFFFFFFU;
+    g_chassis_debug.navigation_online = (uint8_t)(
+        (navigation.valid != 0U) &&
+        (g_chassis_debug.navigation_age_ms <= NAVIGATION_TIMEOUT_MS));
+    g_chassis_debug.navigation_frame_count = navigation.frame_count;
+    g_chassis_debug.navigation_checksum_errors = navigation.checksum_error_count;
+    /* 无论当前来源如何，都刷新四轮反馈并检查电机在线。 */
+    motors_online = Chassis_AllMotorsOnline(now_ms);
 
-    /* 左拨杆中档使能。上档和下档都保持零输出。 */
-    if ((g_chassis_debug.remote_online == 0U) ||
-        (Remote_Control_DataValid(&remote) == 0U) ||
-        (remote.switch_position[RC_S_LEFT] != RC_SW_MID) ||
-        (Chassis_AllMotorsOnline(now_ms) == 0U))
+    if (g_chassis_debug.remote_online != 0U)
+    {
+        /* 在线但数据无效时停车，不把坏帧当成遥控断线。 */
+        if (Remote_Control_DataValid(&remote) != 0U)
+        {
+            g_chassis_debug.navigation_armed = (uint8_t)(
+                remote.switch_position[RC_S_LEFT] == RC_SW_MID);
+            if (g_chassis_debug.navigation_armed != 0U)
+            {
+                source = CHASSIS_SOURCE_REMOTE;
+            }
+        }
+    }
+    else if (g_chassis_debug.navigation_armed != 0U)
+    {
+        /* 遥控超过 100 ms 无新帧，且最后有效左开关为中档，才切导航。 */
+        source = CHASSIS_SOURCE_NAVIGATION;
+    }
+
+    if (source != g_chassis_debug.control_source)
+    {
+        g_chassis_debug.control_source = source;
+        g_chassis_debug.navigation_waiting_frame =
+            (uint8_t)(source == CHASSIS_SOURCE_NAVIGATION);
+        g_navigation_entry_frame_count = navigation.frame_count;
+        /* 切换来源先清 PID 并输出零电流；下一控制周期使用新来源。 */
+        Chassis_Stop();
+        return;
+    }
+
+    if ((source == CHASSIS_SOURCE_STOP) || (motors_online == 0U))
     {
         Chassis_Stop();
         return;
     }
 
-    if (CHASSIS_DIRECTION_TEST != 0U)
+    if (source == CHASSIS_SOURCE_NAVIGATION)
     {
-        /* ID1～ID4 全部给正转速，只用于架空确认电机安装方向。 */
+        if (navigation.frame_count != g_navigation_entry_frame_count)
+        {
+            g_chassis_debug.navigation_waiting_frame = 0U;
+        }
+        if ((g_chassis_debug.navigation_waiting_frame != 0U) ||
+            (g_chassis_debug.navigation_online == 0U))
+        {
+            /* 等待新帧/超过 300 ms 无有效帧：清目标、清 PID、撤销驱动力。 */
+            Chassis_Stop();
+            return;
+        }
+        for (i = 0U; i < 4U; i++)
+        {
+            /* 已是 CAN ID1～ID4 的有符号转子 rpm，不再乘安装方向或减速比。 */
+            target[i] = (float)navigation.motor_rpm[i];
+        }
+    }
+    else if (CHASSIS_DIRECTION_TEST != 0U)
+    {
+        /* ID1～ID4全部朝新车头滚动，只用于架空确认电机安装方向。 */
         vx = 0.0f;
         vy = 0.0f;
         wz = 0.0f;
@@ -325,20 +392,19 @@ void Chassis_Update(void)
 
         /*
          * 单位：vx、vy 为 m/s，wz 为 rad/s，wheel_linear_mps 为 m/s。
-         * 电机顺序：0x201 右前、0x202 右后、0x203 左后、0x204 左前。
-         * 正负号等轮向测试完成后再按实车结果确定。
+         * 新车头下的电机位置：0x201 左后、0x202 左前、0x203 右前、0x204 右后。
          */
         /*
-         * 按实车轮组方向定义：前进时 4 个轮子都朝车头方向滚动。
+         * 前进时4个轮子都朝新车头滚动；平移相对原车头反向，旋转方向保持原样。
          * 右侧旋转项同号，左侧旋转项反号。
          */
-        wheel_linear_mps[MOTOR_ID1_RIGHT_FRONT] =
+        wheel_linear_mps[MOTOR_ID3_RIGHT_FRONT] =
             vx * SQRT_HALF + vy * SQRT_HALF + wz * CHASSIS_ROTATION_ARM_M;
-        wheel_linear_mps[MOTOR_ID2_RIGHT_REAR] =
+        wheel_linear_mps[MOTOR_ID4_RIGHT_REAR] =
             vx * SQRT_HALF - vy * SQRT_HALF + wz * CHASSIS_ROTATION_ARM_M;
-        wheel_linear_mps[MOTOR_ID3_LEFT_REAR] =
+        wheel_linear_mps[MOTOR_ID1_LEFT_REAR] =
             vx * SQRT_HALF + vy * SQRT_HALF - wz * CHASSIS_ROTATION_ARM_M;
-        wheel_linear_mps[MOTOR_ID4_LEFT_FRONT] =
+        wheel_linear_mps[MOTOR_ID2_LEFT_FRONT] =
             vx * SQRT_HALF - vy * SQRT_HALF - wz * CHASSIS_ROTATION_ARM_M;
 
         for (i = 0; i < 4; i++)
@@ -346,9 +412,10 @@ void Chassis_Update(void)
             target[i] = wheel_linear_mps[i] * CHASSIS_MPS_TO_MOTOR_RPM *
                         g_motor_direction[i];
         }
-        Chassis_LimitWheelSpeed(target);
     }
 
+    /* 手动与导航统一按现有单轮 4 m/s 上限等比例缩放，保留四轮速度比例。 */
+    Chassis_LimitWheelSpeed(target);
     g_chassis_debug.vx_command = vx;
     g_chassis_debug.vy_command = vy;
     g_chassis_debug.wz_command = wz;
@@ -358,7 +425,7 @@ void Chassis_Update(void)
         DJI_Motor_GetFeedback(i, &motor);
         g_chassis_debug.motor_target_rpm[i] = target[i];
         g_chassis_debug.motor_feedback_rpm[i] = motor.speed_rpm;
-        /* 摇杆回中时立即清除积分，确保目标为 0 时电流也为 0。 */
+        /* 手动回中或导航目标为 0 时清除积分，同时输出零电流。 */
         if (Chassis_AbsFloat(target[i]) < 1.0f)
         {
             PID_Clear(&g_speed_pid[i]);

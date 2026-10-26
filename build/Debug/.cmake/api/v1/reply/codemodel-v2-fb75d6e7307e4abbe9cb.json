@@ -80,21 +80,21 @@
 				{
 					"directoryIndex" : 1,
 					"id" : "STM32_Drivers::@768a070a0fe75716b479",
-					"jsonFile" : "target-STM32_Drivers-Debug-94ae51393912d1496abc.json",
+					"jsonFile" : "target-STM32_Drivers-Debug-5245fae24b3a9c6e8b81.json",
 					"name" : "STM32_Drivers",
 					"projectIndex" : 0
 				},
 				{
 					"directoryIndex" : 1,
 					"id" : "USB_Device_Library::@768a070a0fe75716b479",
-					"jsonFile" : "target-USB_Device_Library-Debug-f740f18773c39371539f.json",
+					"jsonFile" : "target-USB_Device_Library-Debug-3f8394ebfb2f6956ae59.json",
 					"name" : "USB_Device_Library",
 					"projectIndex" : 0
 				},
 				{
 					"directoryIndex" : 0,
 					"id" : "shaobing_dipan::@6890427a1f51a3e7e1df",
-					"jsonFile" : "target-shaobing_dipan-Debug-fb630ccd1c24531acba4.json",
+					"jsonFile" : "target-shaobing_dipan-Debug-1b09ca8d1f74b7e3af82.json",
 					"name" : "shaobing_dipan",
 					"projectIndex" : 0
 				}
@@ -104,8 +104,8 @@
 	"kind" : "codemodel",
 	"paths" : 
 	{
-		"build" : "D:/CODEX/shaobing_dipan/build/Debug",
-		"source" : "D:/CODEX/shaobing_dipan"
+		"build" : "D:/\u6ca7\u6d77\u7535\u63a7/\u7535\u63a7\u8d44\u6599\u53ca\u4ee3\u7801/code/CangHai_RoboMaster_Electrical/shaobing_dipan/build/Debug",
+		"source" : "D:/\u6ca7\u6d77\u7535\u63a7/\u7535\u63a7\u8d44\u6599\u53ca\u4ee3\u7801/code/CangHai_RoboMaster_Electrical/shaobing_dipan"
 	},
 	"version" : 
 	{

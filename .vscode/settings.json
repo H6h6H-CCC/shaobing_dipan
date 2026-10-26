@@ -1,8 +1,11 @@
 {
     "cmake.cmakePath": "C:/Users/abcd1/AppData/Local/stm32cube/bundles/cmake/4.2.3+st.1/bin/cmake.exe",
     "cmake.generator": "Ninja",
-    "cmake.sourceDirectory": "D:/CODEX/shaobing_dipan",
-    "cmake.configureOnOpen": true,
+    "cmake.sourceDirectory": "${workspaceFolder}",
+    // 避免扩展在中文工作目录自动配置；使用 Ctrl+Shift+B 执行 tasks.json 中的配置和编译。
+    "cmake.configureOnOpen": false,
+    "cmake.configureOnEdit": false,
+    "cmake.automaticReconfigure": false,
     "cmake.useCMakePresets": "always",
     "stm32cube-ide-build-cmake.ignoreCubeProjectDiscovery": true,
     "cmake.environment": {

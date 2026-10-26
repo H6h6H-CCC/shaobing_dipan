@@ -32,8 +32,10 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "bsp_can.h"
+#include "dji_motor.h"
 #include "remote_control.h"
 #include "chassis.h"
+#include "navigation.h"
 #include <stdio.h>
 /* USER CODE END Includes */
 
@@ -113,63 +115,35 @@ static void Watchdog_Refresh(void)
 
 static void Debug_UART6_Print(void)
 {
-  remote_control_t remote = {0};
-  static char message[384];
+  navigation_command_t navigation;
+  uint32_t now_ms;
+  uint8_t received;
+  uint8_t valid;
+  static char message[128];
   int length;
 
-  Remote_Control_Get(&remote);
+  /* DMA 未结束时不改写发送缓冲区。 */
+  if (huart6.gState != HAL_UART_STATE_READY)
+  {
+    return;
+  }
+  Navigation_Get(&navigation);
+  now_ms = HAL_GetTick();
+  /* 只输出导航接收诊断：rx/valid 分别表示最近 300 ms 有原始数据/有效帧。 */
+  received = (uint8_t)((navigation.rx_byte_count != 0U) &&
+      ((uint32_t)(now_ms - navigation.last_rx_tick_ms) <= NAVIGATION_TIMEOUT_MS));
+  valid = (uint8_t)((navigation.valid != 0U) &&
+      ((uint32_t)(now_ms - navigation.update_tick_ms) <= NAVIGATION_TIMEOUT_MS));
+
+  /* active 表示已切入导航模式；等待新帧或超时停车时仍为 1。 */
   length = snprintf(message, sizeof(message),
-                    "SYS:up=%lu reset=0x%08lX wdg=%u loop=%lu "
-                    "RC:on=%u valid=%u swL=%u swR=%u wheel=%d "
-                    "M:mask=0x%02X en=%u tgt=%d,%d,%d,%d rpm=%d,%d,%d,%d "
-                    "cmd=%d,%d,%d,%d fbI=%d,%d,%d,%d temp=%u,%u,%u,%u "
-                    "mErr=%u,%u,%u,%u stall=0x%02X noOut=0x%02X age=%lu,%lu,%lu,%lu "
-                    "CAN:free=%u fail=%lu state=%u err=0x%08lX\r\n",
-                    (unsigned long)HAL_GetTick(),
-                    (unsigned long)reset_flags,
-                    (unsigned int)watchdog_enabled,
-                    (unsigned long)main_loop_count,
-                    (unsigned int)g_chassis_debug.remote_online,
-                    (unsigned int)Remote_Control_DataValid(&remote),
-                    (unsigned int)remote.switch_position[RC_S_LEFT],
-                    (unsigned int)remote.switch_position[RC_S_RIGHT],
-                    (int)remote.channel[4],
-                    (unsigned int)g_chassis_debug.motor_online_mask,
-                    (unsigned int)g_chassis_debug.enabled,
-                    (int)g_chassis_debug.motor_target_rpm[0],
-                    (int)g_chassis_debug.motor_target_rpm[1],
-                    (int)g_chassis_debug.motor_target_rpm[2],
-                    (int)g_chassis_debug.motor_target_rpm[3],
-                    (int)g_chassis_debug.motor_feedback_rpm[0],
-                    (int)g_chassis_debug.motor_feedback_rpm[1],
-                    (int)g_chassis_debug.motor_feedback_rpm[2],
-                    (int)g_chassis_debug.motor_feedback_rpm[3],
-                    (int)g_chassis_debug.motor_current[0],
-                    (int)g_chassis_debug.motor_current[1],
-                    (int)g_chassis_debug.motor_current[2],
-                    (int)g_chassis_debug.motor_current[3],
-                    (int)g_chassis_debug.motor_feedback_current[0],
-                    (int)g_chassis_debug.motor_feedback_current[1],
-                    (int)g_chassis_debug.motor_feedback_current[2],
-                    (int)g_chassis_debug.motor_feedback_current[3],
-                    (unsigned int)g_chassis_debug.motor_temperature[0],
-                    (unsigned int)g_chassis_debug.motor_temperature[1],
-                    (unsigned int)g_chassis_debug.motor_temperature[2],
-                    (unsigned int)g_chassis_debug.motor_temperature[3],
-                    (unsigned int)g_chassis_debug.motor_error_code[0],
-                    (unsigned int)g_chassis_debug.motor_error_code[1],
-                    (unsigned int)g_chassis_debug.motor_error_code[2],
-                    (unsigned int)g_chassis_debug.motor_error_code[3],
-                    (unsigned int)g_chassis_debug.motor_stall_mask,
-                    (unsigned int)g_chassis_debug.motor_no_output_mask,
-                    (unsigned long)g_chassis_debug.motor_feedback_age_ms[0],
-                    (unsigned long)g_chassis_debug.motor_feedback_age_ms[1],
-                    (unsigned long)g_chassis_debug.motor_feedback_age_ms[2],
-                    (unsigned long)g_chassis_debug.motor_feedback_age_ms[3],
-                    (unsigned int)g_chassis_debug.can_tx_mailboxes_free,
-                    (unsigned long)g_chassis_debug.can_tx_fail_count,
-                    (unsigned int)HAL_CAN_GetState(&hcan1),
-                    (unsigned long)HAL_CAN_GetError(&hcan1));
+                    "NAV:active=%u rx=%u valid=%u bytes=%lu frames=%lu bad=%lu\r\n",
+                    (unsigned int)(g_chassis_debug.control_source == CHASSIS_SOURCE_NAVIGATION),
+                    (unsigned int)received,
+                    (unsigned int)valid,
+                    (unsigned long)navigation.rx_byte_count,
+                    (unsigned long)navigation.frame_count,
+                    (unsigned long)navigation.checksum_error_count);
 
   if (length > 0)
   {
@@ -177,7 +151,7 @@ static void Debug_UART6_Print(void)
     {
       length = (int)sizeof(message) - 1;
     }
-    /* DMA 非阻塞发送，避免每秒打印时暂停底盘控制约 20 ms。 */
+    /* DMA 非阻塞发送，避免每秒打印时暂停底盘控制。 */
     (void)HAL_UART_Transmit_DMA(&huart6, (uint8_t *)message, (uint16_t)length);
   }
 }
@@ -210,7 +184,8 @@ int main(void)
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-
+  /* 导航缓冲必须先于 USB 启动初始化，避免覆盖刚收到的上位机指令。 */
+  Navigation_Init();
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
@@ -257,6 +232,8 @@ int main(void)
   {
     main_loop_count++;
     Watchdog_Refresh();
+    /* 底盘接收DBUS后，通过USART1 DMA转发给云台板。 */
+    Remote_Control_Forward_Update();
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -268,7 +245,7 @@ int main(void)
       Chassis_Update();
     }
 
-    /* USER CODE: USART6 sends one chassis diagnostic line every second. */
+    /* USART6 每秒只发送一行导航接收诊断。 */
     if ((uint32_t)(HAL_GetTick() - debug_uart6_tick_ms) >= 1000U)
     {
       debug_uart6_tick_ms += 1000U;

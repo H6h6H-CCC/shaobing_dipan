@@ -72,7 +72,7 @@ rule C_COMPILER__USB_Device_Library_unscanned_Debug
 # Rule for re-running cmake.
 
 rule RERUN_CMAKE
-  command = C:\Users\abcd1\AppData\Local\stm32cube\bundles\cmake\4.2.3+st.1\bin\cmake.exe --regenerate-during-build -SD:\CODEX\shaobing_dipan -BD:\CODEX\shaobing_dipan\build\Debug
+  command = C:\Users\abcd1\AppData\Local\stm32cube\bundles\cmake\4.2.3+st.1\bin\cmake.exe --regenerate-during-build -SD:\沧海电控\电控资料及代码\code\CangHai_RoboMaster_Electrical\shaobing_dipan -BD:\沧海电控\电控资料及代码\code\CangHai_RoboMaster_Electrical\shaobing_dipan\build\Debug
   description = Re-running CMake...
   generator = 1
 

@@ -1,4 +1,4 @@
-# Install script for directory: D:/CODEX/shaobing_dipan
+# Install script for directory: D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -39,13 +39,13 @@ endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for the subdirectory.
-  include("D:/CODEX/shaobing_dipan/build/Debug/cmake/stm32cubemx/cmake_install.cmake")
+  include("D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/build/Debug/cmake/stm32cubemx/cmake_install.cmake")
 endif()
 
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
 if(CMAKE_INSTALL_LOCAL_ONLY)
-  file(WRITE "D:/CODEX/shaobing_dipan/build/Debug/install_local_manifest.txt"
+  file(WRITE "D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/build/Debug/install_local_manifest.txt"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")
 endif()
 if(CMAKE_INSTALL_COMPONENT)
@@ -61,6 +61,6 @@ else()
 endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
-  file(WRITE "D:/CODEX/shaobing_dipan/build/Debug/${CMAKE_INSTALL_MANIFEST}"
+  file(WRITE "D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/build/Debug/${CMAKE_INSTALL_MANIFEST}"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")
 endif()

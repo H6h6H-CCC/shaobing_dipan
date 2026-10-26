@@ -1,5 +1,9 @@
-D:/CODEX/shaobing_dipan/Device/dji_motor.c:11:13:DJI_Motor_Parse	24	static
-D:/CODEX/shaobing_dipan/Device/dji_motor.c:24:6:HAL_CAN_RxFifo0MsgPendingCallback	56	static
-D:/CODEX/shaobing_dipan/Device/dji_motor.c:43:19:DJI_Motor_SendChassisCurrent	72	static
-D:/CODEX/shaobing_dipan/Device/dji_motor.c:76:6:DJI_Motor_GetFeedback	24	static,ignoring_inline_asm
-D:/CODEX/shaobing_dipan/Device/dji_motor.c:94:9:DJI_Motor_IsOnline	40	static
+D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/Device/dji_motor.c:15:13:DJI_Motor_Parse	24	static
+D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/Device/dji_motor.c:28:13:DJI_6020_Parse	24	static
+D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/Device/dji_motor.c:41:6:HAL_CAN_RxFifo0MsgPendingCallback	56	static
+D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/Device/dji_motor.c:66:19:DJI_Motor_SendChassisCurrent	72	static
+D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/Device/dji_motor.c:99:19:DJI_6020_SendCurrent	72	static
+D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/Device/dji_motor.c:131:6:DJI_Motor_GetFeedback	24	static,ignoring_inline_asm
+D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/Device/dji_motor.c:149:9:DJI_Motor_IsOnline	40	static
+D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/Device/dji_motor.c:158:6:DJI_6020_GetFeedback	24	static,ignoring_inline_asm
+D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/Device/dji_motor.c:176:9:DJI_6020_IsOnline	40	static

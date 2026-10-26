@@ -3,15 +3,18 @@
     "tasks": [
         {
             "label": "CMake: configure Debug",
-            "type": "shell",
+            "type": "process",
+            "detail": "从英文工作目录启动CMake，用-S指定实际工程，避开中文当前目录导致的配置异常。",
             "command": "C:/Users/abcd1/AppData/Local/stm32cube/bundles/cmake/4.2.3+st.1/bin/cmake.exe",
             "args": [
+                "-S",
+                "${workspaceFolder}",
                 "--preset",
                 "Debug"
             ],
             "problemMatcher": [],
             "options": {
-                "cwd": "D:/CODEX/shaobing_dipan",
+                "cwd": "D:/",
                 "env": {
                     "PATH": "C:/Users/abcd1/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin;C:/Users/abcd1/AppData/Local/stm32cube/bundles/ninja/1.13.2+st.1/bin;${env:PATH}"
                 }
@@ -19,12 +22,12 @@
         },
         {
             "label": "CMake: build Debug",
-            "type": "shell",
+            "type": "process",
+            "detail": "编译产物仍保存在本工程build/Debug，不依赖外部目录或Junction。",
             "command": "C:/Users/abcd1/AppData/Local/stm32cube/bundles/cmake/4.2.3+st.1/bin/cmake.exe",
             "args": [
                 "--build",
-                "--preset",
-                "Debug",
+                "${workspaceFolder}/build/Debug",
                 "--parallel"
             ],
             "dependsOn": "CMake: configure Debug",
@@ -35,7 +38,7 @@
             },
             "problemMatcher": "$gcc",
             "options": {
-                "cwd": "D:/CODEX/shaobing_dipan",
+                "cwd": "D:/",
                 "env": {
                     "PATH": "C:/Users/abcd1/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin;C:/Users/abcd1/AppData/Local/stm32cube/bundles/ninja/1.13.2+st.1/bin;${env:PATH}"
                 }

@@ -1,0 +1,4 @@
+D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/Device/navigation.c:9:6:Navigation_Init	40	static
+D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/Device/navigation.c:15:6:Navigation_Invalidate	16	static
+D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/Device/navigation.c:26:6:Navigation_Receive	24	static
+D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/Device/navigation.c:79:6:Navigation_Get	40	static,ignoring_inline_asm

@@ -1,0 +1,15 @@
+D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/Application/gimbal_6020.c:86:14:Gimbal6020_Clamp	24	static
+D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/Application/gimbal_6020.c:99:13:Gimbal6020_PIDInit	40	static
+D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/Application/gimbal_6020.c:117:13:Gimbal6020_PIDClear	16	static
+D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/Application/gimbal_6020.c:126:14:Gimbal6020_PIDUpdate	32	static
+D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/Application/gimbal_6020.c:159:14:Gimbal6020_EcdToDeg	16	static
+D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/Application/gimbal_6020.c:164:14:Gimbal6020_Wrap360	16	static
+D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/Application/gimbal_6020.c:177:14:Gimbal6020_ShortestError	24	static
+D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/Application/gimbal_6020.c:192:15:Gimbal6020_GetLimitState	16	static
+D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/Application/gimbal_6020.c:219:13:Gimbal6020_SendCurrent	32	static
+D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/Application/gimbal_6020.c:237:14:Gimbal6020_ApplySoftLimit	40	static
+D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/Application/gimbal_6020.c:274:16:Gimbal6020_ControlAxis	40	static
+D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/Application/gimbal_6020.c:317:6:Gimbal6020_Init	8	static
+D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/Application/gimbal_6020.c:366:6:Gimbal6020_Stop	8	static
+D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/Application/gimbal_6020.c:390:6:Gimbal6020_Update	128	static
+D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/Application/gimbal_6020.c:498:6:Gimbal6020_GetDebug	16	static

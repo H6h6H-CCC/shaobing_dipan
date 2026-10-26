@@ -179,7 +179,7 @@
 				}
 			],
 			"type" : "INTERNAL",
-			"value" : "d:/CODEX/shaobing_dipan/build/Debug"
+			"value" : "d:/\u6ca7\u6d77\u7535\u63a7/\u7535\u63a7\u8d44\u6599\u53ca\u4ee3\u7801/code/CangHai_RoboMaster_Electrical/shaobing_dipan/build/Debug"
 		},
 		{
 			"name" : "CMAKE_CACHE_MAJOR_VERSION",
@@ -614,18 +614,6 @@
 			"value" : ""
 		},
 		{
-			"name" : "CMAKE_EXPORT_COMPILE_COMMANDS",
-			"properties" : 
-			[
-				{
-					"name" : "HELPSTRING",
-					"value" : "No help, variable specified on the command line."
-				}
-			],
-			"type" : "BOOL",
-			"value" : "TRUE"
-		},
-		{
 			"name" : "CMAKE_EXTRA_GENERATOR",
 			"properties" : 
 			[
@@ -647,7 +635,7 @@
 				}
 			],
 			"type" : "STATIC",
-			"value" : "D:/CODEX/shaobing_dipan/build/Debug/CMakeFiles/pkgRedirects"
+			"value" : "D:/\u6ca7\u6d77\u7535\u63a7/\u7535\u63a7\u8d44\u6599\u53ca\u4ee3\u7801/code/CangHai_RoboMaster_Electrical/shaobing_dipan/build/Debug/CMakeFiles/pkgRedirects"
 		},
 		{
 			"name" : "CMAKE_GENERATOR",
@@ -707,7 +695,7 @@
 				}
 			],
 			"type" : "INTERNAL",
-			"value" : "D:/CODEX/shaobing_dipan"
+			"value" : "D:/\u6ca7\u6d77\u7535\u63a7/\u7535\u63a7\u8d44\u6599\u53ca\u4ee3\u7801/code/CangHai_RoboMaster_Electrical/shaobing_dipan"
 		},
 		{
 			"name" : "CMAKE_INSTALL_PREFIX",
@@ -1222,8 +1210,8 @@
 					"value" : "No help, variable specified on the command line."
 				}
 			],
-			"type" : "UNINITIALIZED",
-			"value" : "D:/CODEX/shaobing_dipan/cmake/gcc-arm-none-eabi.cmake"
+			"type" : "FILEPATH",
+			"value" : "D:/\u6ca7\u6d77\u7535\u63a7/\u7535\u63a7\u8d44\u6599\u53ca\u4ee3\u7801/code/CangHai_RoboMaster_Electrical/shaobing_dipan/cmake/gcc-arm-none-eabi.cmake"
 		},
 		{
 			"name" : "CMAKE_VERBOSE_MAKEFILE",
@@ -1251,7 +1239,7 @@
 				}
 			],
 			"type" : "STATIC",
-			"value" : "D:/CODEX/shaobing_dipan/build/Debug"
+			"value" : "D:/\u6ca7\u6d77\u7535\u63a7/\u7535\u63a7\u8d44\u6599\u53ca\u4ee3\u7801/code/CangHai_RoboMaster_Electrical/shaobing_dipan/build/Debug"
 		},
 		{
 			"name" : "shaobing_dipan_IS_TOP_LEVEL",
@@ -1275,7 +1263,7 @@
 				}
 			],
 			"type" : "STATIC",
-			"value" : "D:/CODEX/shaobing_dipan"
+			"value" : "D:/\u6ca7\u6d77\u7535\u63a7/\u7535\u63a7\u8d44\u6599\u53ca\u4ee3\u7801/code/CangHai_RoboMaster_Electrical/shaobing_dipan"
 		}
 	],
 	"kind" : "cache",

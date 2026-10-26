@@ -1,16 +1,24 @@
 #include "remote_control.h"
 #include "bsp_remote.h"
+#include <string.h>
 
 #define RC_FRAME_LENGTH 18U
 #define RC_DMA_BUFFER_LENGTH 36U
 #define RC_CHANNEL_OFFSET 1024
 #define RC_CHANNEL_MAX_ABS 700
+#define RC_FORWARD_HEADER 0xA6U
+#define RC_FORWARD_FRAME_LENGTH 20U
 
 extern UART_HandleTypeDef huart3;
+extern UART_HandleTypeDef huart1;
 extern DMA_HandleTypeDef hdma_usart3_rx;
 
 static uint8_t g_rx_buffer[2][RC_DMA_BUFFER_LENGTH];
 static volatile remote_control_t g_remote;
+/* 转发缓冲与DMA发送缓冲分开，避免新遥控帧覆盖正在发送的数据。 */
+static uint8_t g_forward_pending_frame[RC_FORWARD_FRAME_LENGTH];
+static uint8_t g_forward_dma_frame[RC_FORWARD_FRAME_LENGTH];
+static volatile uint8_t g_forward_pending;
 
 static void Remote_Control_Decode(const uint8_t data[RC_FRAME_LENGTH])
 {
@@ -33,6 +41,18 @@ static void Remote_Control_Decode(const uint8_t data[RC_FRAME_LENGTH])
     decoded.update_tick_ms = HAL_GetTick();
 
     g_remote = decoded;
+
+    /* 旧工程协议：0xA6 + 原始DBUS 18字节 + 8位累加和。 */
+    g_forward_pending_frame[0] = RC_FORWARD_HEADER;
+    memcpy(&g_forward_pending_frame[1], data, RC_FRAME_LENGTH);
+    g_forward_pending_frame[RC_FORWARD_FRAME_LENGTH - 1U] = 0U;
+    for (uint8_t i = 0U; i < (RC_FORWARD_FRAME_LENGTH - 1U); i++)
+    {
+        g_forward_pending_frame[RC_FORWARD_FRAME_LENGTH - 1U] =
+            (uint8_t)(g_forward_pending_frame[RC_FORWARD_FRAME_LENGTH - 1U] +
+                      g_forward_pending_frame[i]);
+    }
+    g_forward_pending = 1U;
 }
 
 void Remote_Control_Init(void)
@@ -77,6 +97,33 @@ void Remote_Control_UART_IRQHandler(void)
     if (received_length == RC_FRAME_LENGTH)
     {
         Remote_Control_Decode(completed_buffer);
+    }
+}
+
+void Remote_Control_Forward_Update(void)
+{
+    uint32_t primask;
+
+    if (g_forward_pending == 0U)
+    {
+        return;
+    }
+
+    primask = __get_PRIMASK();
+    __disable_irq();
+    memcpy(g_forward_dma_frame, g_forward_pending_frame,
+           RC_FORWARD_FRAME_LENGTH);
+    g_forward_pending = 0U;
+    if (primask == 0U)
+    {
+        __enable_irq();
+    }
+
+    /* DMA繁忙时保留pending帧，下一次主循环重试。 */
+    if (HAL_UART_Transmit_DMA(&huart1, g_forward_dma_frame,
+                              RC_FORWARD_FRAME_LENGTH) != HAL_OK)
+    {
+        g_forward_pending = 1U;
     }
 }
 

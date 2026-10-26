@@ -50,6 +50,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     BSP/bsp_remote.c
     Device/dji_motor.c
     Device/remote_control.c
+    # USB CDC 导航四路转子 rpm 协议。
+    Device/navigation.c
     Device/WIT_Gyro.c
     Device/BMI088driver.c
     Device/BMI088Middleware.c

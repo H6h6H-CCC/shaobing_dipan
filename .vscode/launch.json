@@ -5,10 +5,16 @@
             "name": "CMSIS-DAP: OpenOCD 调试",
             "type": "cortex-debug",
             "request": "launch",
-            "cwd": "D:/CODEX/shaobing_dipan",
-            "executable": "D:/CODEX/shaobing_dipan/build/Debug/shaobing_dipan.elf",
+            "cwd": "${workspaceFolder}",
+            "executable": "${workspaceFolder}/build/Debug/shaobing_dipan.elf",
             "preLaunchTask": "CMake: build Debug",
             "servertype": "openocd",
+            // 用相对路径下载，绕过 Windows GDB 对中文绝对路径的编码错误。
+            "overrideLaunchCommands": [
+                "monitor reset halt",
+                "load build/Debug/shaobing_dipan.elf",
+                "monitor reset halt"
+            ],
             "serverpath": "D:/openocd-20260302/OpenOCD-20260302-0.12.0/bin/openocd.exe",
             "searchDir": [
                 "D:/openocd-20260302/OpenOCD-20260302-0.12.0/share/openocd/scripts"
@@ -26,10 +32,17 @@
             "name": "ST-Link: SWD 调试",
             "type": "cortex-debug",
             "request": "launch",
-            "cwd": "D:/CODEX/shaobing_dipan",
-            "executable": "D:/CODEX/shaobing_dipan/build/Debug/shaobing_dipan.elf",
+            "cwd": "${workspaceFolder}",
+            "executable": "${workspaceFolder}/build/Debug/shaobing_dipan.elf",
             "preLaunchTask": "CMake: build Debug",
             "servertype": "stlink",
+            // 保留 ST-Link 原有复位流程，仅将下载改成相对路径。
+            "overrideLaunchCommands": [
+                "monitor reset",
+                "load build/Debug/shaobing_dipan.elf",
+                "monitor reset",
+                "monitor halt"
+            ],
             "serverpath": "C:/Users/abcd1/AppData/Local/stm32cube/bundles/stlink-gdbserver/7.13.0+st.3/bin/ST-LINK_gdbserver.exe",
             "stm32cubeprogrammer": "C:/Users/abcd1/AppData/Local/stm32cube/bundles/programmer/2.22.0+st.1/bin",
             "gdbPath": "C:/Users/abcd1/AppData/Local/stm32cube/bundles/gnu-tools-for-stm32/14.3.1+st.2/bin/arm-none-eabi-gdb.exe",
