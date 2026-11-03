@@ -265,6 +265,7 @@ int main(void)
       heartbeat_tick_ms = HAL_GetTick();
       HAL_GPIO_TogglePin(LED_G_GPIO_Port, LED_G_Pin);
     }
+    
   }
   /* USER CODE END 3 */
 }
