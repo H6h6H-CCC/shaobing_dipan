@@ -33,6 +33,9 @@
 #define CHASSIS_WHEEL_MAX_RPM       (CHASSIS_WHEEL_MAX_MPS * CHASSIS_MPS_TO_MOTOR_RPM)
 #define CHASSIS_CURRENT_MAX         14000.0f
 
+/* 实车车头与当前逻辑坐标相差180°；仅翻转平移，不改变原地旋转方向。 */
+#define CHASSIS_HEADING_REVERSED    1U
+
 #define CHASSIS_SPEED_KP 5.0f
 #define CHASSIS_SPEED_KI 0.05f
 #define CHASSIS_SPEED_KD 0.0f
@@ -94,6 +97,24 @@ enum
  * ID1、ID2 保持电机编码器原方向，ID3、ID4 安装方向取反。
  */
 static const float g_motor_direction[4] = {1.0f, 1.0f, -1.0f, -1.0f};
+
+void Chassis_MotorRpmToVelocity(const int16_t motor_rpm[4],
+                              float *vx, float *vy, float *wz)
+{
+    float wheel[4];
+    uint8_t i;
+
+    /* 撤回安装方向和减速比换算，只用于串口显示，不影响导航控制目标。 */
+    for (i = 0U; i < 4U; i++)
+    {
+        wheel[i] = (float)motor_rpm[i] /
+                   (CHASSIS_MPS_TO_MOTOR_RPM * g_motor_direction[i]);
+    }
+    *vx = (wheel[0] + wheel[1] + wheel[2] + wheel[3]) / (4.0f * SQRT_HALF);
+    *vy = (wheel[0] - wheel[1] + wheel[2] - wheel[3]) / (4.0f * SQRT_HALF);
+    *wz = (-wheel[0] - wheel[1] + wheel[2] + wheel[3]) /
+          (4.0f * CHASSIS_ROTATION_ARM_M);
+}
 
 static float Chassis_AbsFloat(float value)
 {
@@ -388,6 +409,12 @@ void Chassis_Update(void)
             vy = -Chassis_DeadbandNormalize(remote.channel[2]) * CHASSIS_STRAFE_MAX_MPS;
             wz = Chassis_DeadbandNormalize(remote.channel[4]) * CHASSIS_ROTATION_MAX_RAD_S;
         }
+
+#if CHASSIS_HEADING_REVERSED
+        /* 当前逻辑车头与实车车头相反：前后、左右平移一起取反，旋转保持原方向。 */
+        vx = -vx;
+        vy = -vy;
+#endif
         /* 底盘旋转使用遥控器左侧拨轮（DBUS 第 5 通道）。 */
 
         /*

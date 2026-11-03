@@ -61,5 +61,9 @@ extern volatile chassis_debug_t g_chassis_debug;
 void Chassis_Init(void);
 void Chassis_Update(void);
 void Chassis_Stop(void);
+/* 仅用于调试：由 ID1～ID4 的转子 rpm 反算指令速度，非实测车速。
+ * +vx 向前、+vy 向右（m/s），+wz 逆时针旋转（rad/s）。 */
+void Chassis_MotorRpmToVelocity(const int16_t motor_rpm[4],
+                              float *vx, float *vy, float *wz);
 
 #endif

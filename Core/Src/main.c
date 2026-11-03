@@ -116,10 +116,13 @@ static void Watchdog_Refresh(void)
 static void Debug_UART6_Print(void)
 {
   navigation_command_t navigation;
+  float vx;
+  float vy;
+  float wz;
   uint32_t now_ms;
   uint8_t received;
   uint8_t valid;
-  static char message[128];
+  static char message[192];
   int length;
 
   /* DMA 未结束时不改写发送缓冲区。 */
@@ -134,16 +137,20 @@ static void Debug_UART6_Print(void)
       ((uint32_t)(now_ms - navigation.last_rx_tick_ms) <= NAVIGATION_TIMEOUT_MS));
   valid = (uint8_t)((navigation.valid != 0U) &&
       ((uint32_t)(now_ms - navigation.update_tick_ms) <= NAVIGATION_TIMEOUT_MS));
+  /* AA 56 只有四路轮速：以下速度由最近一帧目标反算，是否过期看 valid。 */
+  Chassis_MotorRpmToVelocity(navigation.motor_rpm, &vx, &vy, &wz);
 
   /* active 表示已切入导航模式；等待新帧或超时停车时仍为 1。 */
   length = snprintf(message, sizeof(message),
-                    "NAV:active=%u rx=%u valid=%u bytes=%lu frames=%lu bad=%lu\r\n",
+                    "NAV:active=%u rx=%u valid=%u bytes=%lu frames=%lu bad=%lu "
+                    "vx=%.3f vy=%.3f wz=%.3f\r\n",
                     (unsigned int)(g_chassis_debug.control_source == CHASSIS_SOURCE_NAVIGATION),
                     (unsigned int)received,
                     (unsigned int)valid,
                     (unsigned long)navigation.rx_byte_count,
                     (unsigned long)navigation.frame_count,
-                    (unsigned long)navigation.checksum_error_count);
+                    (unsigned long)navigation.checksum_error_count,
+                    (double)vx, (double)vy, (double)wz);
 
   if (length > 0)
   {

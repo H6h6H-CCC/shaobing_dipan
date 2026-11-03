@@ -65,3 +65,11 @@
 423	827	8147134593430536	shaobing_dipan.elf	3669a77a4c28899
 1156	2218	8137684005250711	CMakeFiles/shaobing_dipan.dir/Application/gimbal_6020.c.obj	c0e5c231157ae72d
 332	2290	8147134114317072	CMakeFiles/shaobing_dipan.dir/Device/navigation.c.obj	61eb1789e78b26ac
+12	548	8147162104283961	build.ninja	6e2657479f7ee82b
+12	548	8147162104283961	D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/build/Debug/cmake_install.cmake	6e2657479f7ee82b
+12	548	8147162104283961	D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/build/Debug/cmake/stm32cubemx/cmake_install.cmake	6e2657479f7ee82b
+126	1694	8147162108313918	CMakeFiles/shaobing_dipan.dir/Application/chassis.c.obj	c93c0092381b0afe
+37	1696	8147162107419519	CMakeFiles/shaobing_dipan.dir/Core/Src/main.c.obj	6a632bdb279a31d4
+1696	4042	8147162124003697	shaobing_dipan.elf	fae111dcfdd28c48
+40	1175	8149820100524684	CMakeFiles/shaobing_dipan.dir/Application/chassis.c.obj	c93c0092381b0afe
+1175	2099	8149820111865871	shaobing_dipan.elf	fae111dcfdd28c48
