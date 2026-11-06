@@ -5,6 +5,8 @@
 
 fp32 BMI088_ACCEL_SEN = BMI088_ACCEL_3G_SEN;
 fp32 BMI088_GYRO_SEN = BMI088_GYRO_2000_SEN;
+/* IMU迁移：启动静态校准得到的三轴陀螺偏置。 */
+static fp32 bmi088_gyro_offset[3];
 
 
 
@@ -88,6 +90,9 @@ static uint8_t write_BMI088_gyro_reg_data_error[BMI088_WRITE_GYRO_REG_NUM][3] =
 uint8_t BMI088_init(void)
 {
     uint8_t error = BMI088_NO_ERROR;
+    bmi088_gyro_offset[0] = 0.0f;
+    bmi088_gyro_offset[1] = 0.0f;
+    bmi088_gyro_offset[2] = 0.0f;
     // GPIO and SPI  Init .
     BMI088_GPIO_init();
     BMI088_com_init();
@@ -113,6 +118,24 @@ uint8_t BMI088_init(void)
 
     return error;
 }
+
+/* IMU迁移：校准期间先清零，完成后由系统写入静态偏置。 */
+void BMI088_set_gyro_offset(const fp32 offset[3])
+{
+    if (offset == NULL) return;
+    bmi088_gyro_offset[0] = offset[0];
+    bmi088_gyro_offset[1] = offset[1];
+    bmi088_gyro_offset[2] = offset[2];
+}
+
+void BMI088_get_gyro_offset(fp32 offset[3])
+{
+    if (offset == NULL) return;
+    offset[0] = bmi088_gyro_offset[0];
+    offset[1] = bmi088_gyro_offset[1];
+    offset[2] = bmi088_gyro_offset[2];
+}
+
 
 bool_t bmi088_accel_init(void)
 {
@@ -409,11 +432,11 @@ void BMI088_gyro_read_over(uint8_t *rx_buf, fp32 gyro[3])
 {
     int16_t bmi088_raw_temp;
     bmi088_raw_temp = (int16_t)((rx_buf[1]) << 8) | rx_buf[0];
-    gyro[0] = bmi088_raw_temp * BMI088_GYRO_SEN;
+    gyro[0] = bmi088_raw_temp * BMI088_GYRO_SEN - bmi088_gyro_offset[0];
     bmi088_raw_temp = (int16_t)((rx_buf[3]) << 8) | rx_buf[2];
-    gyro[1] = bmi088_raw_temp * BMI088_GYRO_SEN;
+    gyro[1] = bmi088_raw_temp * BMI088_GYRO_SEN - bmi088_gyro_offset[1];
     bmi088_raw_temp = (int16_t)((rx_buf[5]) << 8) | rx_buf[4];
-    gyro[2] = bmi088_raw_temp * BMI088_GYRO_SEN;
+    gyro[2] = bmi088_raw_temp * BMI088_GYRO_SEN - bmi088_gyro_offset[2];
 }
 
 void BMI088_read(fp32 gyro[3], fp32 accel[3], fp32 *temperate)
@@ -434,11 +457,11 @@ void BMI088_read(fp32 gyro[3], fp32 accel[3], fp32 *temperate)
     if(buf[0] == BMI088_GYRO_CHIP_ID_VALUE)
     {
         bmi088_raw_temp = (int16_t)((buf[3]) << 8) | buf[2];
-        gyro[0] = bmi088_raw_temp * BMI088_GYRO_SEN;
+        gyro[0] = bmi088_raw_temp * BMI088_GYRO_SEN - bmi088_gyro_offset[0];
         bmi088_raw_temp = (int16_t)((buf[5]) << 8) | buf[4];
-        gyro[1] = bmi088_raw_temp * BMI088_GYRO_SEN;
+        gyro[1] = bmi088_raw_temp * BMI088_GYRO_SEN - bmi088_gyro_offset[1];
         bmi088_raw_temp = (int16_t)((buf[7]) << 8) | buf[6];
-        gyro[2] = bmi088_raw_temp * BMI088_GYRO_SEN;
+        gyro[2] = bmi088_raw_temp * BMI088_GYRO_SEN - bmi088_gyro_offset[2];
     }
     BMI088_accel_read_muli_reg(BMI088_TEMP_M, buf, 2);
 

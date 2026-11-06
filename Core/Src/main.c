@@ -28,6 +28,7 @@
 #include "usart.h"
 #include "usb_device.h"
 #include "gpio.h"
+#include "imu_system.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -46,7 +47,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define IMU_STATUS_LED_PWM 50000U
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -58,11 +59,22 @@
 
 /* USER CODE BEGIN PV */
 static uint32_t chassis_update_tick_ms;
+/* IMU迁移：独立保存实际采样时间，正常运行约每2ms更新一次。 */
+static uint32_t imu_update_tick_ms;
 static uint32_t debug_uart6_tick_ms;
-static uint32_t heartbeat_tick_ms;
 static uint32_t reset_flags;
 static uint32_t main_loop_count;
 static uint8_t watchdog_enabled;
+typedef enum
+{
+  IMU_LED_WARMING = 0U,
+  IMU_LED_STABLE,
+  IMU_LED_CALIBRATING,
+  IMU_LED_READY
+} imu_led_state_t;
+static imu_led_state_t imu_led_state;
+static uint8_t imu_led_phase;
+static uint32_t imu_led_tick;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -116,13 +128,14 @@ static void Watchdog_Refresh(void)
 static void Debug_UART6_Print(void)
 {
   navigation_command_t navigation;
+  const imu_system_t *imu;
   float vx;
   float vy;
   float wz;
   uint32_t now_ms;
   uint8_t received;
   uint8_t valid;
-  static char message[192];
+  static char message[320];
   int length;
 
   /* DMA 未结束时不改写发送缓冲区。 */
@@ -131,6 +144,7 @@ static void Debug_UART6_Print(void)
     return;
   }
   Navigation_Get(&navigation);
+  imu = IMU_System_GetData();
   now_ms = HAL_GetTick();
   /* 只输出导航接收诊断：rx/valid 分别表示最近 300 ms 有原始数据/有效帧。 */
   received = (uint8_t)((navigation.rx_byte_count != 0U) &&
@@ -143,14 +157,25 @@ static void Debug_UART6_Print(void)
   /* active 表示已切入导航模式；等待新帧或超时停车时仍为 1。 */
   length = snprintf(message, sizeof(message),
                     "NAV:active=%u rx=%u valid=%u bytes=%lu frames=%lu bad=%lu "
-                    "vx=%.3f vy=%.3f wz=%.3f\r\n",
+                    "vx=%.3f vy=%.3f wz=%.3f "
+                    "IMU:ready=%u temp=%.2f G=%.3f,%.3f,%.3f "
+                    "YPR=%.2f,%.2f,%.2f DB=%.4f,%.4f,%.4f\r\n",
                     (unsigned int)(g_chassis_debug.control_source == CHASSIS_SOURCE_NAVIGATION),
                     (unsigned int)received,
                     (unsigned int)valid,
                     (unsigned long)navigation.rx_byte_count,
                     (unsigned long)navigation.frame_count,
                     (unsigned long)navigation.checksum_error_count,
-                    (double)vx, (double)vy, (double)wz);
+                    (double)vx, (double)vy, (double)wz,
+                    (unsigned int)imu->initialized,
+                    (double)imu->temperature,
+                    (double)imu->gyro[0], (double)imu->gyro[1], (double)imu->gyro[2],
+                    (double)(imu->ekf.yaw * 57.29578f),
+                    (double)(imu->ekf.pitch * 57.29578f),
+                    (double)(imu->ekf.roll * 57.29578f),
+                    (double)imu->gyro_bias[0],
+                    (double)imu->gyro_bias[1],
+                    (double)imu->gyro_bias[2]);
 
   if (length > 0)
   {
@@ -161,6 +186,88 @@ static void Debug_UART6_Print(void)
     /* DMA 非阻塞发送，避免每秒打印时暂停底盘控制。 */
     (void)HAL_UART_Transmit_DMA(&huart6, (uint8_t *)message, (uint16_t)length);
   }
+}
+
+
+/* IMU迁移：用底盘已有 TIM5 RGB 灯显示升温、稳定、校准和就绪状态。 */
+static void IMU_StatusLed_Output(uint16_t red, uint16_t green, uint16_t blue)
+{
+  __HAL_TIM_SET_COMPARE(&htim5, TIM_CHANNEL_1, blue);
+  __HAL_TIM_SET_COMPARE(&htim5, TIM_CHANNEL_2, green);
+  __HAL_TIM_SET_COMPARE(&htim5, TIM_CHANNEL_3, red);
+}
+
+static void IMU_StatusLed_Set(imu_led_state_t state)
+{
+  imu_led_state = state;
+  imu_led_phase = 1U;
+  imu_led_tick = HAL_GetTick();
+  if (state == IMU_LED_WARMING)
+    IMU_StatusLed_Output(IMU_STATUS_LED_PWM, 0U, 0U);
+  else if (state == IMU_LED_STABLE)
+    IMU_StatusLed_Output(IMU_STATUS_LED_PWM, IMU_STATUS_LED_PWM, 0U);
+  else if (state == IMU_LED_CALIBRATING)
+    IMU_StatusLed_Output(0U, 0U, IMU_STATUS_LED_PWM);
+  else
+    IMU_StatusLed_Output(0U, IMU_STATUS_LED_PWM, 0U);
+}
+
+static void IMU_StatusLed_Update(void)
+{
+  uint32_t now = HAL_GetTick();
+  uint32_t period = (imu_led_state == IMU_LED_CALIBRATING) ? 250U : 500U;
+
+  if (imu_led_state == IMU_LED_READY)
+  {
+    IMU_StatusLed_Output(0U, IMU_STATUS_LED_PWM, 0U);
+    return;
+  }
+  if ((uint32_t)(now - imu_led_tick) >= period)
+  {
+    imu_led_tick = now;
+    imu_led_phase ^= 1U;
+    if (imu_led_phase == 0U)
+      IMU_StatusLed_Output(0U, 0U, 0U);
+    else if (imu_led_state == IMU_LED_WARMING)
+      IMU_StatusLed_Output(IMU_STATUS_LED_PWM, 0U, 0U);
+    else if (imu_led_state == IMU_LED_STABLE)
+      IMU_StatusLed_Output(IMU_STATUS_LED_PWM, IMU_STATUS_LED_PWM, 0U);
+    else
+      IMU_StatusLed_Output(0U, 0U, IMU_STATUS_LED_PWM);
+  }
+}
+
+static void IMU_Temperature_SetPWM(uint16_t pwm)
+{
+  __HAL_TIM_SET_COMPARE(&htim10, TIM_CHANNEL_1, pwm);
+}
+
+static uint8_t IMU_HeaterStart(void)
+{
+  IMU_Temperature_SetPWM(0U);
+  return (uint8_t)(HAL_TIM_PWM_Start(&htim10, TIM_CHANNEL_1) == HAL_OK);
+}
+
+static void IMU_StageChanged(imu_system_stage_t stage)
+{
+  if (stage == IMU_SYSTEM_WARMING)
+    IMU_StatusLed_Set(IMU_LED_WARMING);
+  else if (stage == IMU_SYSTEM_TEMPERATURE_STABLE)
+    IMU_StatusLed_Set(IMU_LED_STABLE);
+  else if (stage == IMU_SYSTEM_CALIBRATING)
+    IMU_StatusLed_Set(IMU_LED_CALIBRATING);
+  else
+    IMU_StatusLed_Set(IMU_LED_READY);
+}
+
+static void IMU_StartupProgress(void)
+{
+  IMU_StatusLed_Update();
+}
+
+static uint32_t IMU_GetTickMs(void)
+{
+  return HAL_GetTick();
 }
 
 /* USER CODE END 0 */
@@ -217,6 +324,21 @@ int main(void)
   MX_I2C3_Init();
   MX_SPI1_Init();
   MX_SPI2_Init();
+  {
+    imu_system_config_t imu_config = {
+        .get_tick_ms = IMU_GetTickMs,
+        .heater_start = IMU_HeaterStart,
+        .heater_set_pwm = IMU_Temperature_SetPWM,
+        .stage_changed = IMU_StageChanged,
+        .progress = IMU_StartupProgress};
+    /* IMU迁移：BMI088自检、恒温、静态校准和初始姿态完成后再启动底盘控制。 */
+    if (!IMU_System_Init(&imu_config))
+    {
+      IMU_Temperature_SetPWM(0U);
+      Error_Handler();
+    }
+  }
+  imu_update_tick_ms = HAL_GetTick();
   MX_TIM14_Init();
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 2 */
@@ -229,7 +351,6 @@ int main(void)
   Chassis_Init();
   chassis_update_tick_ms = HAL_GetTick();
   debug_uart6_tick_ms = HAL_GetTick();
-  heartbeat_tick_ms = HAL_GetTick();
   Watchdog_Init();
   /* USER CODE END 2 */
 
@@ -247,8 +368,12 @@ int main(void)
     /* USER CODE: simple 2 ms scheduler; FreeRTOS is intentionally not used yet. */
     if ((uint32_t)(HAL_GetTick() - chassis_update_tick_ms) >= CHASSIS_CONTROL_PERIOD_MS)
     {
+      uint32_t now_ms = HAL_GetTick();
+      uint32_t imu_elapsed_ms = now_ms - imu_update_tick_ms;
       /* 超时后从当前时刻重新计时，不连续追帧挤满 CAN 邮箱。 */
-      chassis_update_tick_ms = HAL_GetTick();
+      chassis_update_tick_ms = now_ms;
+      imu_update_tick_ms = now_ms;
+      IMU_System_Update((float)imu_elapsed_ms * 0.001f);
       Chassis_Update();
     }
 
@@ -259,12 +384,8 @@ int main(void)
       Debug_UART6_Print();
     }
 
-    /* 绿色 LED 每 500 ms 翻转一次，串口停止时仍可观察主循环是否存活。 */
-    if ((uint32_t)(HAL_GetTick() - heartbeat_tick_ms) >= 500U)
-    {
-      heartbeat_tick_ms = HAL_GetTick();
-      HAL_GPIO_TogglePin(LED_G_GPIO_Port, LED_G_Pin);
-    }
+    /* IMU状态灯由温控/校准阶段控制；就绪后保持绿灯。 */
+    IMU_StatusLed_Update();
     
   }
   /* USER CODE END 3 */

@@ -28,6 +28,10 @@
 #define CHASSIS_FORWARD_MAX_MPS     2.0f
 #define CHASSIS_STRAFE_MAX_MPS      1.5f
 #define CHASSIS_ROTATION_MAX_RAD_S  4.0f
+/* 修改：匹配老工程低档的底盘转速约19.74 rpm，右上为正、右下为负。
+ * 老工程5000控制量 -> 每轮1250 rpm -> /19 * 0.075/0.25 = 19.74底盘rpm。 */
+#define CHASSIS_SMALL_GYRO_MAX_RAD_S 2.067f
+#define CHASSIS_SMALL_GYRO_RAMP_RAD_S_PER_S 3.0f
 /* 与原 Chassis 工程一致：单轮线速度限幅 4 m/s，按本车轮径和减速比换算为转子转速。 */
 #define CHASSIS_WHEEL_MAX_MPS       4.0f
 #define CHASSIS_WHEEL_MAX_RPM       (CHASSIS_WHEEL_MAX_MPS * CHASSIS_MPS_TO_MOTOR_RPM)
@@ -76,12 +80,16 @@
 #define PI_F      3.14159265f
 #define SQRT_HALF 0.70710678f
 
+/* 方向修正：运动学+wz与两套IMU同号，均为俯视逆时针Yaw增大。 */
+#define CHASSIS_YAW_RATE_SIGN_FROM_WZ (1.0f)
+
 volatile chassis_debug_t g_chassis_debug;
 static pid_t g_speed_pid[4];
 static uint16_t g_stall_time_ms[4];
 static uint16_t g_no_output_time_ms[4];
 static uint32_t g_diagonal_test_elapsed_ms;
 static uint32_t g_navigation_entry_frame_count;
+static float g_small_gyro_wz_command;
 
 /* 新车头相对原定义转180度；数组下标仍按CAN ID1～ID4排列。 */
 enum
@@ -114,6 +122,24 @@ void Chassis_MotorRpmToVelocity(const int16_t motor_rpm[4],
     *vy = (wheel[0] - wheel[1] + wheel[2] - wheel[3]) / (4.0f * SQRT_HALF);
     *wz = (-wheel[0] - wheel[1] + wheel[2] + wheel[3]) /
           (4.0f * CHASSIS_ROTATION_ARM_M);
+}
+
+float Chassis_GetActualZSpeedRpm(void)
+{
+    int16_t motor_rpm[4];
+    float vx;
+    float vy;
+    float wz;
+    uint8_t i;
+
+    for (i = 0U; i < 4U; i++)
+    {
+        motor_rpm[i] = g_chassis_debug.motor_feedback_rpm[i];
+    }
+    Chassis_MotorRpmToVelocity(motor_rpm, &vx, &vy, &wz);
+    /* A5统一使用与BMI088相同的符号：逆时针Yaw增大。 */
+    return wz * CHASSIS_YAW_RATE_SIGN_FROM_WZ * 60.0f /
+           (2.0f * PI_F);
 }
 
 static float Chassis_AbsFloat(float value)
@@ -257,6 +283,8 @@ void Chassis_Init(void)
     g_chassis_debug.control_source = CHASSIS_SOURCE_STOP;
     g_chassis_debug.navigation_armed = 0U;
     g_chassis_debug.navigation_waiting_frame = 0U;
+    g_chassis_debug.small_gyro_active = 0U;
+    g_small_gyro_wz_command = 0.0f;
     for (i = 0; i < 4; i++)
     {
         PID_Init(&g_speed_pid[i],
@@ -284,6 +312,8 @@ void Chassis_Stop(void)
     g_chassis_debug.vx_command = 0.0f;
     g_chassis_debug.vy_command = 0.0f;
     g_chassis_debug.wz_command = 0.0f;
+    g_chassis_debug.small_gyro_active = 0U;
+    g_small_gyro_wz_command = 0.0f;
     g_chassis_debug.enabled = 0U;
     status = DJI_Motor_SendChassisCurrent(&hcan1, 0, 0, 0, 0);
     if (status != HAL_OK)
@@ -325,6 +355,8 @@ void Chassis_Update(void)
     g_chassis_debug.navigation_checksum_errors = navigation.checksum_error_count;
     /* 无论当前来源如何，都刷新四轮反馈并检查电机在线。 */
     motors_online = Chassis_AllMotorsOnline(now_ms);
+    g_chassis_debug.actual_wz_rad_s = Chassis_GetActualZSpeedRpm() *
+                                      (2.0f * PI_F) / 60.0f;
 
     if (g_chassis_debug.remote_online != 0U)
     {
@@ -333,7 +365,9 @@ void Chassis_Update(void)
         {
             g_chassis_debug.navigation_armed = (uint8_t)(
                 remote.switch_position[RC_S_LEFT] == RC_SW_MID);
-            if (g_chassis_debug.navigation_armed != 0U)
+            /* 左上进入小陀螺控制，左中保留普通遥控，左下停车。 */
+            if ((remote.switch_position[RC_S_LEFT] == RC_SW_MID) ||
+                (remote.switch_position[RC_S_LEFT] == RC_SW_UP))
             {
                 source = CHASSIS_SOURCE_REMOTE;
             }
@@ -405,9 +439,50 @@ void Chassis_Update(void)
         }
         else
         {
-            vx = Chassis_DeadbandNormalize(remote.channel[3]) * CHASSIS_FORWARD_MAX_MPS;
-            vy = -Chassis_DeadbandNormalize(remote.channel[2]) * CHASSIS_STRAFE_MAX_MPS;
-            wz = Chassis_DeadbandNormalize(remote.channel[4]) * CHASSIS_ROTATION_MAX_RAD_S;
+            if (remote.switch_position[RC_S_LEFT] == RC_SW_UP)
+            {
+                float target_small_gyro_wz = 0.0f;
+                float step = CHASSIS_SMALL_GYRO_RAMP_RAD_S_PER_S *
+                             ((float)CHASSIS_CONTROL_PERIOD_MS * 0.001f);
+
+                /* 右上正转、右下反转、右中停止；平移摇杆在该模式下忽略。 */
+                if (remote.switch_position[RC_S_RIGHT] == RC_SW_UP)
+                {
+                    target_small_gyro_wz = CHASSIS_SMALL_GYRO_MAX_RAD_S;
+                }
+                else if (remote.switch_position[RC_S_RIGHT] == RC_SW_DOWN)
+                {
+                    target_small_gyro_wz = -CHASSIS_SMALL_GYRO_MAX_RAD_S;
+                }
+                if (g_small_gyro_wz_command < target_small_gyro_wz - step)
+                {
+                    g_small_gyro_wz_command += step;
+                }
+                else if (g_small_gyro_wz_command > target_small_gyro_wz + step)
+                {
+                    g_small_gyro_wz_command -= step;
+                }
+                else
+                {
+                    g_small_gyro_wz_command = target_small_gyro_wz;
+                }
+                vx = 0.0f;
+                vy = 0.0f;
+                wz = g_small_gyro_wz_command;
+                /* 修改：右中减速期间继续补偿，轮速接近零后再撤销ID1补偿。 */
+                g_chassis_debug.small_gyro_active = (uint8_t)(
+                    (target_small_gyro_wz != 0.0f) ||
+                    (g_small_gyro_wz_command != 0.0f) ||
+                    (Chassis_AbsFloat(g_chassis_debug.actual_wz_rad_s) > 0.03f));
+            }
+            else
+            {
+                g_small_gyro_wz_command = 0.0f;
+                vx = Chassis_DeadbandNormalize(remote.channel[3]) * CHASSIS_FORWARD_MAX_MPS;
+                vy = -Chassis_DeadbandNormalize(remote.channel[2]) * CHASSIS_STRAFE_MAX_MPS;
+                wz = Chassis_DeadbandNormalize(remote.channel[4]) * CHASSIS_ROTATION_MAX_RAD_S;
+                g_chassis_debug.small_gyro_active = 0U;
+            }
         }
 
 #if CHASSIS_HEADING_REVERSED

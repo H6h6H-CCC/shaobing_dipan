@@ -33,6 +33,7 @@ typedef struct
     float vx_command;             /* m/s */
     float vy_command;             /* m/s */
     float wz_command;             /* rad/s */
+    float actual_wz_rad_s;        /* 由四轮反馈反算的实际旋转速度 */
     float motor_target_rpm[4];
     int16_t motor_feedback_rpm[4];
     int16_t motor_feedback_current[4];
@@ -54,6 +55,7 @@ typedef struct
     uint8_t navigation_armed;     /* 最后有效遥控左开关为中档，才允许断线导航。 */
     uint8_t navigation_online;
     uint8_t navigation_waiting_frame; /* 切入导航后等待一帧新的有效指令。 */
+    uint8_t small_gyro_active;    /* 修改：左上小陀螺运行或右中减速期间有效。 */
 } chassis_debug_t;
 
 extern volatile chassis_debug_t g_chassis_debug;
@@ -65,5 +67,6 @@ void Chassis_Stop(void);
  * +vx 向前、+vy 向右（m/s），+wz 逆时针旋转（rad/s）。 */
 void Chassis_MotorRpmToVelocity(const int16_t motor_rpm[4],
                               float *vx, float *vy, float *wz);
+float Chassis_GetActualZSpeedRpm(void);
 
 #endif

@@ -1,5 +1,6 @@
 #include "remote_control.h"
 #include "bsp_remote.h"
+#include "chassis.h"
 #include <string.h>
 
 #define RC_FRAME_LENGTH 18U
@@ -8,6 +9,10 @@
 #define RC_CHANNEL_MAX_ABS 700
 #define RC_FORWARD_HEADER 0xA6U
 #define RC_FORWARD_FRAME_LENGTH 20U
+#define RC_STATUS_HEADER 0xA5U
+#define RC_STATUS_FRAME_LENGTH 20U
+#define RC_FORWARD_COMBINED_LENGTH \
+    (RC_FORWARD_FRAME_LENGTH + RC_STATUS_FRAME_LENGTH)
 
 extern UART_HandleTypeDef huart3;
 extern UART_HandleTypeDef huart1;
@@ -17,8 +22,25 @@ static uint8_t g_rx_buffer[2][RC_DMA_BUFFER_LENGTH];
 static volatile remote_control_t g_remote;
 /* 转发缓冲与DMA发送缓冲分开，避免新遥控帧覆盖正在发送的数据。 */
 static uint8_t g_forward_pending_frame[RC_FORWARD_FRAME_LENGTH];
-static uint8_t g_forward_dma_frame[RC_FORWARD_FRAME_LENGTH];
+static uint8_t g_forward_dma_frame[RC_FORWARD_COMBINED_LENGTH];
 static volatile uint8_t g_forward_pending;
+
+static void Remote_Control_BuildStatusFrame(uint8_t frame[RC_STATUS_FRAME_LENGTH])
+{
+    float chassis_z_speed_rpm = Chassis_GetActualZSpeedRpm();
+
+    memset(frame, 0, RC_STATUS_FRAME_LENGTH);
+    frame[0] = RC_STATUS_HEADER;
+    /* 方向修正：[1..4]底盘Z轴转速，正值对应逆时针Yaw增大。 */
+    memcpy(&frame[1], &chassis_z_speed_rpm, sizeof(chassis_z_speed_rpm));
+    /* 修改：[9]小陀螺运行或右中减速时有效，停车后关闭补偿。 */
+    frame[9] = g_chassis_debug.small_gyro_active;
+    for (uint8_t i = 0U; i < (RC_STATUS_FRAME_LENGTH - 1U); i++)
+    {
+        frame[RC_STATUS_FRAME_LENGTH - 1U] =
+            (uint8_t)(frame[RC_STATUS_FRAME_LENGTH - 1U] + frame[i]);
+    }
+}
 
 static void Remote_Control_Decode(const uint8_t data[RC_FRAME_LENGTH])
 {
@@ -104,7 +126,9 @@ void Remote_Control_Forward_Update(void)
 {
     uint32_t primask;
 
-    if (g_forward_pending == 0U)
+    /* 修改：DMA未发完时保留pending，禁止改写正在发送的缓冲。 */
+    if ((g_forward_pending == 0U) ||
+        (huart1.gState != HAL_UART_STATE_READY))
     {
         return;
     }
@@ -113,6 +137,8 @@ void Remote_Control_Forward_Update(void)
     __disable_irq();
     memcpy(g_forward_dma_frame, g_forward_pending_frame,
            RC_FORWARD_FRAME_LENGTH);
+    Remote_Control_BuildStatusFrame(
+        &g_forward_dma_frame[RC_FORWARD_FRAME_LENGTH]);
     g_forward_pending = 0U;
     if (primask == 0U)
     {
@@ -121,7 +147,7 @@ void Remote_Control_Forward_Update(void)
 
     /* DMA繁忙时保留pending帧，下一次主循环重试。 */
     if (HAL_UART_Transmit_DMA(&huart1, g_forward_dma_frame,
-                              RC_FORWARD_FRAME_LENGTH) != HAL_OK)
+                              RC_FORWARD_COMBINED_LENGTH) != HAL_OK)
     {
         g_forward_pending = 1U;
     }
