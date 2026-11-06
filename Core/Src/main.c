@@ -248,6 +248,7 @@ static uint8_t IMU_HeaterStart(void)
   return (uint8_t)(HAL_TIM_PWM_Start(&htim10, TIM_CHANNEL_1) == HAL_OK);
 }
 
+
 static void IMU_StageChanged(imu_system_stage_t stage)
 {
   if (stage == IMU_SYSTEM_WARMING)
