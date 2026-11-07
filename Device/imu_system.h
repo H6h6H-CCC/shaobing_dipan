@@ -3,8 +3,6 @@
 
 #include <stdint.h>
 
-#include "imu_dynamic_ekf.h"
-
 typedef enum
 {
   IMU_SYSTEM_WARMING = 0U,
@@ -24,14 +22,16 @@ typedef struct
 
 typedef struct
 {
+  /* 修改：三轴原始量保留用于启动静止判断，不再进行Pitch/Roll或EKF解算。 */
   float accel[3];
-  float accel_filtered[3];
-  float gyro[3];
-  float gyro_bias[3];
+  float gyro[3];              /* rad/s，校准后Z轴已由驱动扣除静态零偏。 */
+  float gyro_bias_z;          /* rad/s，仅启动静态校准时写入，运行期间冻结。 */
+  float yaw_rate_rad_s;      /* rad/s，逆时针为正。 */
+  float yaw_rad;             /* rad，归一化到[-pi, pi]。 */
+  float yaw_total_rad;       /* rad，上电校准完成后从0累计，不限制圈数。 */
   float temperature;
   uint32_t dt_us;
   uint8_t initialized;
-  imu_dynamic_ekf_t ekf;
 } imu_system_t;
 
 uint8_t IMU_System_Init(const imu_system_config_t *config);

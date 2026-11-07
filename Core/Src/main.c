@@ -155,12 +155,13 @@ static void Debug_UART6_Print(void)
   /* AA 56 只有四路轮速：以下速度由最近一帧目标反算，是否过期看 valid。 */
   Chassis_MotorRpmToVelocity(navigation.motor_rpm, &vx, &vy, &wz);
 
-  /* active 表示已切入导航模式；等待新帧或超时停车时仍为 1。 */
+  /* 修改：IMU只输出补偿后GZ(rad/s)、Yaw/累计Yaw(度)、固定Z零偏(rad/s)。
+   * active表示已切入导航模式；等待新帧或超时停车时仍为1。 */
   length = snprintf(message, sizeof(message),
                     "NAV:active=%u rx=%u valid=%u bytes=%lu frames=%lu bad=%lu "
                     "vx=%.3f vy=%.3f wz=%.3f "
-                    "IMU:ready=%u temp=%.2f G=%.3f,%.3f,%.3f "
-                    "YPR=%.2f,%.2f,%.2f DB=%.4f,%.4f,%.4f "
+                    "IMU:ready=%u temp=%.2f GZ=%.5f "
+                    "YAW=%.2f YAW_TOTAL=%.2f DBZ=%.6f "
                     "FOLLOW:valid=%u angle=%.2f age=%lu vx=%.2f vy=%.2f wz=%.2f spin=%u\r\n",
                     (unsigned int)(g_chassis_debug.control_source == CHASSIS_SOURCE_NAVIGATION),
                     (unsigned int)received,
@@ -171,13 +172,10 @@ static void Debug_UART6_Print(void)
                     (double)vx, (double)vy, (double)wz,
                     (unsigned int)imu->initialized,
                     (double)imu->temperature,
-                    (double)imu->gyro[0], (double)imu->gyro[1], (double)imu->gyro[2],
-                    (double)(imu->ekf.yaw * 57.29578f),
-                    (double)(imu->ekf.pitch * 57.29578f),
-                    (double)(imu->ekf.roll * 57.29578f),
-                    (double)imu->gyro_bias[0],
-                    (double)imu->gyro_bias[1],
-                    (double)imu->gyro_bias[2],
+                    (double)imu->yaw_rate_rad_s,
+                    (double)(imu->yaw_rad * 57.29578f),
+                    (double)(imu->yaw_total_rad * 57.29578f),
+                    (double)imu->gyro_bias_z,
                     /* 修改：保留原导航/IMU输出，追加朝向回传和底盘运动状态。 */
                     (unsigned int)g_chassis_debug.gimbal_heading_valid,
                     (double)g_chassis_debug.gimbal_heading_deg,
@@ -342,7 +340,7 @@ int main(void)
         .heater_set_pwm = IMU_Temperature_SetPWM,
         .stage_changed = IMU_StageChanged,
         .progress = IMU_StartupProgress};
-    /* IMU迁移：BMI088自检、恒温、静态校准和初始姿态完成后再启动底盘控制。 */
+    /* 修改：BMI088自检、恒温和Z轴静态校准完成后，再启动底盘控制。 */
     if (!IMU_System_Init(&imu_config))
     {
       IMU_Temperature_SetPWM(0U);

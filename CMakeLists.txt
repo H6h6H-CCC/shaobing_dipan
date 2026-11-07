@@ -56,8 +56,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     Device/WIT_Gyro.c
     Device/BMI088driver.c
     Device/BMI088Middleware.c
-    # IMU系统层：温控、启动静态校准和动态EKF。
-    Device/imu_dynamic_ekf.c
+    # 修改：底盘IMU仅保留温控、启动Z零偏校准和Yaw积分，不编译EKF。
     Device/imu_system.c
     Device/imu_temperature_control.c
     Device/ist8310driver.c

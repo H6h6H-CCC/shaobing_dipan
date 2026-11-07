@@ -14,18 +14,16 @@
 #define IMU_TEMPERATURE_COLD_START_FEED_FORWARD_PWM 1100.0f
 #define IMU_TEMPERATURE_NORMAL_START_FEED_FORWARD_PWM 900.0f
 #define IMU_GYRO_CALIBRATION_SAMPLES 6000U
-#define IMU_ACCEL_INIT_SAMPLES 100U
 #define IMU_STATIC_GYRO_MAX_RAD_S 0.05f
 #define IMU_STATIC_ACCEL_TOLERANCE 0.5f
-#define IMU_ACCEL_FILTER_ALPHA 0.386f
 #define IMU_SAMPLE_PERIOD_MS 2U
+#define IMU_TWO_PI 6.28318530718f
 
 static imu_system_t g_imu;
 static imu_system_config_t g_config;
 static imu_temperature_controller_t g_temperature_controller;
 static imu_system_stage_t g_stage;
 static uint8_t g_stage_initialized;
-static uint8_t g_accel_filter_initialized;
 
 static void IMU_System_SetStage(imu_system_stage_t stage)
 {
@@ -42,18 +40,8 @@ static void IMU_System_Progress(void)
 
 static void IMU_System_ReadSensor(void)
 {
-  float raw_accel[3];
-  BMI088_read(g_imu.gyro, raw_accel, &g_imu.temperature);
-  for (uint8_t i = 0U; i < 3U; i++)
-  {
-    g_imu.accel[i] = raw_accel[i];
-    if (!g_accel_filter_initialized)
-      g_imu.accel_filtered[i] = raw_accel[i];
-    else
-      g_imu.accel_filtered[i] +=
-          IMU_ACCEL_FILTER_ALPHA * (raw_accel[i] - g_imu.accel_filtered[i]);
-  }
-  g_accel_filter_initialized = 1U;
+  /* 修改：加速度仅用于启动静止判断，移除姿态解算专用低通滤波。 */
+  BMI088_read(g_imu.gyro, g_imu.accel, &g_imu.temperature);
 }
 
 static void IMU_System_UpdateTemperature(float dt)
@@ -104,7 +92,7 @@ static void IMU_System_WaitForTemperature(void)
 static void IMU_System_CalibrateGyro(void)
 {
   const float zero_offset[3] = {0.0f, 0.0f, 0.0f};
-  float sum[3] = {0.0f};
+  float sum_z = 0.0f;
   uint16_t valid_samples = 0U;
   uint32_t last_tick = g_config.get_tick_ms();
 
@@ -125,7 +113,7 @@ static void IMU_System_CalibrateGyro(void)
     if (!IMU_System_TemperatureInRange())
     {
       valid_samples = 0U;
-      memset(sum, 0, sizeof(sum));
+      sum_z = 0.0f;
       IMU_System_WaitForTemperature();
       IMU_System_SetStage(IMU_SYSTEM_CALIBRATING);
       last_tick = g_config.get_tick_ms();
@@ -141,66 +129,22 @@ static void IMU_System_CalibrateGyro(void)
     if (gyro_norm < IMU_STATIC_GYRO_MAX_RAD_S &&
         fabsf(accel_norm - 9.80665f) < IMU_STATIC_ACCEL_TOLERANCE)
     {
-      for (uint8_t i = 0U; i < 3U; i++) sum[i] += g_imu.gyro[i];
+      /* 修改：三轴共同判断静止，只累计Z轴零偏。 */
+      sum_z += g_imu.gyro[2];
       valid_samples++;
     }
     else
     {
       valid_samples = 0U;
-      memset(sum, 0, sizeof(sum));
+      sum_z = 0.0f;
     }
   }
 
-  g_imu.gyro_bias[0] = sum[0] / (float)IMU_GYRO_CALIBRATION_SAMPLES;
-  g_imu.gyro_bias[1] = sum[1] / (float)IMU_GYRO_CALIBRATION_SAMPLES;
-  g_imu.gyro_bias[2] = sum[2] / (float)IMU_GYRO_CALIBRATION_SAMPLES;
-  BMI088_set_gyro_offset(g_imu.gyro_bias);
-}
-
-static void IMU_System_CollectInitialQuaternion(float q[4])
-{
-  float accel_sum[3] = {0.0f, 0.0f, 0.0f};
-  uint16_t samples = 0U;
-  uint32_t last_tick = g_config.get_tick_ms();
-
-  while (samples < IMU_ACCEL_INIT_SAMPLES)
+  g_imu.gyro_bias_z = sum_z / (float)IMU_GYRO_CALIBRATION_SAMPLES;
   {
-    uint32_t now = g_config.get_tick_ms();
-    uint32_t elapsed_ms = now - last_tick;
-    if (elapsed_ms < IMU_SAMPLE_PERIOD_MS) continue;
-
-    last_tick = now;
-    g_imu.dt_us = elapsed_ms * 1000U;
-    IMU_System_ReadSensor();
-    IMU_System_UpdateTemperature((float)elapsed_ms * 0.001f);
-    IMU_System_Progress();
-    for (uint8_t i = 0U; i < 3U; i++) accel_sum[i] += g_imu.accel[i];
-    samples++;
-  }
-
-  for (uint8_t i = 0U; i < 3U; i++) accel_sum[i] /= (float)IMU_ACCEL_INIT_SAMPLES;
-  {
-    float norm = sqrtf(accel_sum[0] * accel_sum[0] +
-                       accel_sum[1] * accel_sum[1] +
-                       accel_sum[2] * accel_sum[2]);
-    float axis_x;
-    float axis_y;
-    float axis_norm;
-    float half_angle;
-
-    q[0] = 1.0f; q[1] = 0.0f; q[2] = 0.0f; q[3] = 0.0f;
-    if (norm < 1.0f) return;
-    accel_sum[0] /= norm;
-    accel_sum[1] /= norm;
-    accel_sum[2] /= norm;
-    axis_x = accel_sum[1];
-    axis_y = -accel_sum[0];
-    axis_norm = sqrtf(axis_x * axis_x + axis_y * axis_y);
-    half_angle = 0.5f * acosf(fmaxf(-1.0f, fminf(1.0f, accel_sum[2])));
-    if (axis_norm < 1.0e-6f) return;
-    q[0] = cosf(half_angle);
-    q[1] = axis_x * sinf(half_angle) / axis_norm;
-    q[2] = axis_y * sinf(half_angle) / axis_norm;
+    /* 修改：只在驱动层减一次Z零偏；X/Y不标定，运行期间不更新偏置。 */
+    const float offset[3] = {0.0f, 0.0f, g_imu.gyro_bias_z};
+    BMI088_set_gyro_offset(offset);
   }
 }
 
@@ -213,7 +157,6 @@ uint8_t IMU_System_Init(const imu_system_config_t *config)
   memset(&g_imu, 0, sizeof(g_imu));
   g_config = *config;
   g_stage_initialized = 0U;
-  g_accel_filter_initialized = 0U;
 
   IMU_TemperatureController_Init(&g_temperature_controller,
                                 g_config.heater_set_pwm);
@@ -235,13 +178,11 @@ uint8_t IMU_System_Init(const imu_system_config_t *config)
 
   IMU_System_WaitForTemperature();
   IMU_System_CalibrateGyro();
-  {
-    float init_q[4];
-    IMU_System_CollectInitialQuaternion(init_q);
-    IMU_DynamicEKF_Init(&g_imu.ekf, init_q, NULL,
-                      10.0f, 0.001f, 1000000.0f, 1.0e-8f);
-  }
-  IMU_DynamicEKF_SetZBiasFrozen(&g_imu.ekf, 1U);
+  /* 修改：无需四元数初始化；校准结束时Yaw从0开始，温控继续闭环。 */
+  g_imu.yaw_rad = 0.0f;
+  g_imu.yaw_total_rad = 0.0f;
+  IMU_System_ReadSensor();
+  g_imu.yaw_rate_rad_s = g_imu.gyro[2];
 
   g_imu.initialized = 1U;
   IMU_System_SetStage(IMU_SYSTEM_READY);
@@ -251,12 +192,16 @@ uint8_t IMU_System_Init(const imu_system_config_t *config)
 
 void IMU_System_Update(float dt)
 {
+  float delta_yaw;
   if (!g_imu.initialized) return;
   g_imu.dt_us = (uint32_t)lroundf(dt * 1000000.0f);
   IMU_System_ReadSensor();
   IMU_System_UpdateTemperature(dt);
-  IMU_DynamicEKF_Update(&g_imu.ekf, g_imu.gyro,
-                        g_imu.accel_filtered, dt);
+  /* 修改：gyro[2]已经扣除启动Z零偏，不再重复扣除；慢速旋转也正常积分。 */
+  g_imu.yaw_rate_rad_s = g_imu.gyro[2];
+  delta_yaw = g_imu.yaw_rate_rad_s * dt;
+  g_imu.yaw_total_rad += delta_yaw;
+  g_imu.yaw_rad = remainderf(g_imu.yaw_rad + delta_yaw, IMU_TWO_PI);
 }
 
 const imu_system_t *IMU_System_GetData(void)

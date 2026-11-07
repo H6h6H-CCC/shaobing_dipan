@@ -7,7 +7,7 @@
 199	998	8137683995675213	CMakeFiles/shaobing_dipan.dir/Core/Src/adc.c.obj	84a721ad29612efa
 124	1182	8137683994924433	CMakeFiles/shaobing_dipan.dir/USB_DEVICE/App/usbd_desc.c.obj	33290c5323c24ec4
 40	2298	8147134111383790	CMakeFiles/shaobing_dipan.dir/USB_DEVICE/App/usbd_cdc_if.c.obj	d4ed18bb1ea7f190
-26	899	8156753750681862	CMakeFiles/shaobing_dipan.dir/Core/Src/main.c.obj	6a632bdb279a31d4
+22	732	8157496230705833	CMakeFiles/shaobing_dipan.dir/Core/Src/main.c.obj	6a632bdb279a31d4
 286	1156	8137683996540091	CMakeFiles/shaobing_dipan.dir/Core/Src/rtc.c.obj	7879c3bd2f5ea5f1
 220	1024	8137683995883510	CMakeFiles/shaobing_dipan.dir/Core/Src/can.c.obj	aa19259989360eac
 242	1104	8137683996111259	CMakeFiles/shaobing_dipan.dir/Core/Src/dma.c.obj	636f34adf358470
@@ -62,13 +62,13 @@
 2140	3134	8137684015076743	cmake/stm32cubemx/CMakeFiles/STM32_Drivers.dir/__/__/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_i2c.c.obj	de40b4323e167eae
 2460	3182	8137684018276940	cmake/stm32cubemx/CMakeFiles/USB_Device_Library.dir/__/__/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Src/usbd_cdc.c.obj	a1b39679dc3910e1
 2298	3205	8137684016663051	cmake/stm32cubemx/CMakeFiles/STM32_Drivers.dir/__/__/Drivers/STM32F4xx_HAL_Driver/Src/stm32f4xx_hal_tim.c.obj	2736536caf643fd7
-363	920	8156758091957109	shaobing_dipan.elf	92d74c7c5329c89d
+732	1707	8157496237805865	shaobing_dipan.elf	98fcc55720f97e20
 1156	2218	8137684005250711	CMakeFiles/shaobing_dipan.dir/Application/gimbal_6020.c.obj	c0e5c231157ae72d
 332	2290	8147134114317072	CMakeFiles/shaobing_dipan.dir/Device/navigation.c.obj	61eb1789e78b26ac
-6	376	8156759790533173	build.ninja	6e2657479f7ee82b
-6	376	8156759790427962	D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/build/Debug/cmake_install.cmake	6e2657479f7ee82b
-6	376	8156759790483084	D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/build/Debug/cmake/stm32cubemx/cmake_install.cmake	6e2657479f7ee82b
+3	549	8157508831721897	build.ninja	6e2657479f7ee82b
+3	549	8157508831569646	D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/build/Debug/cmake_install.cmake	6e2657479f7ee82b
+3	549	8157508831650796	D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/build/Debug/cmake/stm32cubemx/cmake_install.cmake	6e2657479f7ee82b
 1178	1640	8156441516430190	CMakeFiles/shaobing_dipan.dir/Device/imu_temperature_control.c.obj	b370e5305a98ff07
 1122	1702	8156441515874927	CMakeFiles/shaobing_dipan.dir/Device/imu_dynamic_ekf.c.obj	20028e45732e99ef
-1149	1900	8156441516144984	CMakeFiles/shaobing_dipan.dir/Device/imu_system.c.obj	5be7a257f3792883
+35	547	8157496230847067	CMakeFiles/shaobing_dipan.dir/Device/imu_system.c.obj	5be7a257f3792883
 68	899	8156753751096422	CMakeFiles/shaobing_dipan.dir/Device/gimbal_heading_link.c.obj	b5854e430106843f
