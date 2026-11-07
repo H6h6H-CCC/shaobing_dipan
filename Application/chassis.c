@@ -2,8 +2,11 @@
 #include "dji_motor.h"
 #include "remote_control.h"
 #include "navigation.h"
+#include "gimbal_heading_link.h"
 #include "pid.h"
 #include "can.h"
+
+#include <math.h>
 
 #define CHASSIS_REMOTE_TIMEOUT_MS 100U
 #define CHASSIS_MOTOR_TIMEOUT_MS  100U
@@ -24,9 +27,9 @@
 #define CHASSIS_MPS_TO_MOTOR_RPM \
     (60.0f * CHASSIS_MOTOR_GEAR_RATIO / (PI_F * CHASSIS_WHEEL_DIAMETER_M))
 
-/* 第一轮架空调试限速，确认方向和 PID 后再逐步提高。 */
+/* 修改：主人指定前后、左右速度上限统一2m/s，普通/小陀螺行进共用。 */
 #define CHASSIS_FORWARD_MAX_MPS     2.0f
-#define CHASSIS_STRAFE_MAX_MPS      1.5f
+#define CHASSIS_STRAFE_MAX_MPS      2.0f
 #define CHASSIS_ROTATION_MAX_RAD_S  4.0f
 /* 修改：匹配老工程低档的底盘转速约19.74 rpm，右上为正、右下为负。
  * 老工程5000控制量 -> 每轮1250 rpm -> /19 * 0.075/0.25 = 19.74底盘rpm。 */
@@ -328,6 +331,7 @@ void Chassis_Update(void)
 {
     remote_control_t remote = {0};
     navigation_command_t navigation;
+    gimbal_heading_command_t heading = {0};
     chassis_control_source_t source = CHASSIS_SOURCE_STOP;
     dji_motor_feedback_t motor;
     float wheel_linear_mps[4];
@@ -341,6 +345,7 @@ void Chassis_Update(void)
 
     Remote_Control_Get(&remote);
     Navigation_Get(&navigation);
+    Gimbal_Heading_Get(&heading);
     now_ms = HAL_GetTick();
     /* 在线状态与本次遥控快照使用同一时间戳，避免混用两帧数据。 */
     g_chassis_debug.remote_online = (uint8_t)(
@@ -353,6 +358,12 @@ void Chassis_Update(void)
         (g_chassis_debug.navigation_age_ms <= NAVIGATION_TIMEOUT_MS));
     g_chassis_debug.navigation_frame_count = navigation.frame_count;
     g_chassis_debug.navigation_checksum_errors = navigation.checksum_error_count;
+    /* 修改：heading为最终枪口相对底盘的角度，逆时针正；不直接相减两套IMU。 */
+    g_chassis_debug.gimbal_heading_deg = (float)heading.angle_cdeg * 0.01f;
+    g_chassis_debug.gimbal_heading_age_ms = (heading.frame_count != 0U) ?
+        (uint32_t)(now_ms - heading.update_tick_ms) : UINT32_MAX;
+    g_chassis_debug.gimbal_heading_valid = (uint8_t)((heading.valid != 0U) &&
+        (g_chassis_debug.gimbal_heading_age_ms <= GIMBAL_HEADING_TIMEOUT_MS));
     /* 无论当前来源如何，都刷新四轮反馈并检查电机在线。 */
     motors_online = Chassis_AllMotorsOnline(now_ms);
     g_chassis_debug.actual_wz_rad_s = Chassis_GetActualZSpeedRpm() *
@@ -393,6 +404,20 @@ void Chassis_Update(void)
     if ((source == CHASSIS_SOURCE_STOP) || (motors_online == 0U))
     {
         Chassis_Stop();
+        return;
+    }
+
+    /* 修改：遥控行进必须先标定枪口正前零位并保持回传在线，失效时整车停车。
+     * 导航已给出四轮rpm，保持原协议和控制方式，不要求云台朝向有效。 */
+    if ((source == CHASSIS_SOURCE_REMOTE) &&
+        (CHASSIS_DIRECTION_TEST == 0U) && (CHASSIS_DIAGONAL_TEST == 0U) &&
+        (g_chassis_debug.gimbal_heading_valid == 0U))
+    {
+        Chassis_Stop();
+        /* 修改：停车后仍有实际余转时，让ID1继续反向补偿到轮速接近零。 */
+        g_chassis_debug.small_gyro_active = (uint8_t)(
+            (remote.switch_position[RC_S_LEFT] == RC_SW_UP) &&
+            (Chassis_AbsFloat(g_chassis_debug.actual_wz_rad_s) > 0.03f));
         return;
     }
 
@@ -439,13 +464,26 @@ void Chassis_Update(void)
         }
         else
         {
+            float forward = Chassis_DeadbandNormalize(remote.channel[3]) *
+                            CHASSIS_FORWARD_MAX_MPS;
+            float right = -Chassis_DeadbandNormalize(remote.channel[2]) *
+                           CHASSIS_STRAFE_MAX_MPS;
+            float relative_yaw_rad = g_chassis_debug.gimbal_heading_deg *
+                                     PI_F / 180.0f;
+            float heading_cos = cosf(relative_yaw_rad);
+            float heading_sin = sinf(relative_yaw_rad);
+
+            /* 修改：普通行进/小陀螺共用枪口方向平移；+X前、+Y右、角度逆时针正。
+             * 此处只作坐标变换，下方保留唯一一次原车头180度安装修正。 */
+            vx = forward * heading_cos + right * heading_sin;
+            vy = -forward * heading_sin + right * heading_cos;
             if (remote.switch_position[RC_S_LEFT] == RC_SW_UP)
             {
                 float target_small_gyro_wz = 0.0f;
                 float step = CHASSIS_SMALL_GYRO_RAMP_RAD_S_PER_S *
                              ((float)CHASSIS_CONTROL_PERIOD_MS * 0.001f);
 
-                /* 右上正转、右下反转、右中停止；平移摇杆在该模式下忽略。 */
+                /* 修改：右上正转、右下反转、右中只停自转，左摇杆仍按枪口方向平移。 */
                 if (remote.switch_position[RC_S_RIGHT] == RC_SW_UP)
                 {
                     target_small_gyro_wz = CHASSIS_SMALL_GYRO_MAX_RAD_S;
@@ -466,8 +504,6 @@ void Chassis_Update(void)
                 {
                     g_small_gyro_wz_command = target_small_gyro_wz;
                 }
-                vx = 0.0f;
-                vy = 0.0f;
                 wz = g_small_gyro_wz_command;
                 /* 修改：右中减速期间继续补偿，轮速接近零后再撤销ID1补偿。 */
                 g_chassis_debug.small_gyro_active = (uint8_t)(
@@ -478,8 +514,6 @@ void Chassis_Update(void)
             else
             {
                 g_small_gyro_wz_command = 0.0f;
-                vx = Chassis_DeadbandNormalize(remote.channel[3]) * CHASSIS_FORWARD_MAX_MPS;
-                vy = -Chassis_DeadbandNormalize(remote.channel[2]) * CHASSIS_STRAFE_MAX_MPS;
                 wz = Chassis_DeadbandNormalize(remote.channel[4]) * CHASSIS_ROTATION_MAX_RAD_S;
                 g_chassis_debug.small_gyro_active = 0U;
             }

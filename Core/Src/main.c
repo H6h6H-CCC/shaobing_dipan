@@ -36,6 +36,7 @@
 #include "dji_motor.h"
 #include "remote_control.h"
 #include "chassis.h"
+#include "gimbal_heading_link.h"
 #include "navigation.h"
 #include <stdio.h>
 /* USER CODE END Includes */
@@ -135,7 +136,7 @@ static void Debug_UART6_Print(void)
   uint32_t now_ms;
   uint8_t received;
   uint8_t valid;
-  static char message[320];
+  static char message[512];
   int length;
 
   /* DMA 未结束时不改写发送缓冲区。 */
@@ -159,7 +160,8 @@ static void Debug_UART6_Print(void)
                     "NAV:active=%u rx=%u valid=%u bytes=%lu frames=%lu bad=%lu "
                     "vx=%.3f vy=%.3f wz=%.3f "
                     "IMU:ready=%u temp=%.2f G=%.3f,%.3f,%.3f "
-                    "YPR=%.2f,%.2f,%.2f DB=%.4f,%.4f,%.4f\r\n",
+                    "YPR=%.2f,%.2f,%.2f DB=%.4f,%.4f,%.4f "
+                    "FOLLOW:valid=%u angle=%.2f age=%lu vx=%.2f vy=%.2f wz=%.2f spin=%u\r\n",
                     (unsigned int)(g_chassis_debug.control_source == CHASSIS_SOURCE_NAVIGATION),
                     (unsigned int)received,
                     (unsigned int)valid,
@@ -175,7 +177,15 @@ static void Debug_UART6_Print(void)
                     (double)(imu->ekf.roll * 57.29578f),
                     (double)imu->gyro_bias[0],
                     (double)imu->gyro_bias[1],
-                    (double)imu->gyro_bias[2]);
+                    (double)imu->gyro_bias[2],
+                    /* 修改：保留原导航/IMU输出，追加朝向回传和底盘运动状态。 */
+                    (unsigned int)g_chassis_debug.gimbal_heading_valid,
+                    (double)g_chassis_debug.gimbal_heading_deg,
+                    (unsigned long)g_chassis_debug.gimbal_heading_age_ms,
+                    (double)g_chassis_debug.vx_command,
+                    (double)g_chassis_debug.vy_command,
+                    (double)g_chassis_debug.wz_command,
+                    (unsigned int)g_chassis_debug.small_gyro_active);
 
   if (length > 0)
   {
@@ -349,6 +359,8 @@ int main(void)
     Error_Handler();
   }
   Remote_Control_Init();
+  /* 修改：接收云台USART1回传朝向，原A6/A5发送继续保留。 */
+  Gimbal_Heading_Init();
   Chassis_Init();
   chassis_update_tick_ms = HAL_GetTick();
   debug_uart6_tick_ms = HAL_GetTick();

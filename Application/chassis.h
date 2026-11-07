@@ -43,6 +43,10 @@ typedef struct
     uint32_t navigation_age_ms;
     uint32_t navigation_frame_count;
     uint32_t navigation_checksum_errors;
+    /* 修改：云台回传的最终枪口相对底盘朝向，角度逆时针正；失效时禁止遥控行进。 */
+    float gimbal_heading_deg;
+    uint32_t gimbal_heading_age_ms;
+    uint8_t gimbal_heading_valid;
     uint8_t motor_temperature[4];
     uint8_t motor_error_code[4];
     uint8_t motor_stall_mask;

@@ -50,6 +50,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     BSP/bsp_remote.c
     Device/dji_motor.c
     Device/remote_control.c
+    Device/gimbal_heading_link.c # 修改：USART1接收云台相对朝向。
     # USB CDC 导航四路转子 rpm 协议。
     Device/navigation.c
     Device/WIT_Gyro.c

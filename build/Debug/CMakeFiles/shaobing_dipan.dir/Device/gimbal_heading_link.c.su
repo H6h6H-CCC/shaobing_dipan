@@ -1,0 +1,6 @@
+D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/Device/gimbal_heading_link.c:20:17:Gimbal_Heading_ReadU16	16	static
+D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/Device/gimbal_heading_link.c:25:17:Gimbal_Heading_Crc16	24	static
+D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/Device/gimbal_heading_link.c:43:6:Gimbal_Heading_Init	40	static
+D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/Device/gimbal_heading_link.c:54:6:Gimbal_Heading_Receive	32	static
+D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/Device/gimbal_heading_link.c:99:6:Gimbal_Heading_UART_IRQHandler	24	static
+D:/沧海电控/电控资料及代码/code/CangHai_RoboMaster_Electrical/shaobing_dipan/Device/gimbal_heading_link.c:130:6:Gimbal_Heading_Get	32	static,ignoring_inline_asm
