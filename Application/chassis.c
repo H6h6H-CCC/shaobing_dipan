@@ -27,10 +27,19 @@
 #define CHASSIS_MPS_TO_MOTOR_RPM \
     (60.0f * CHASSIS_MOTOR_GEAR_RATIO / (PI_F * CHASSIS_WHEEL_DIAMETER_M))
 
-/* 修改：主人指定前后、左右速度上限统一2m/s，普通/小陀螺行进共用。 */
-#define CHASSIS_FORWARD_MAX_MPS     2.0f
-#define CHASSIS_STRAFE_MAX_MPS      2.0f
-#define CHASSIS_ROTATION_MAX_RAD_S  4.0f
+/* 修改：主人指定所有方向合速度上限3.5m/s，普通/小陀螺行进共用。 */
+#define CHASSIS_TRANSLATION_MAX_MPS 3.5f
+#define CHASSIS_FORWARD_MAX_MPS     CHASSIS_TRANSLATION_MAX_MPS
+#define CHASSIS_STRAFE_MAX_MPS      CHASSIS_TRANSLATION_MAX_MPS
+#define CHASSIS_ROTATION_MAX_RAD_S  8.8f /* 修改：拨轮满量程约1.40转/s。 */
+/* 修改：仅底盘拨轮旋转使用渐变；200ms内变化达单侧行程10%就接管。 */
+#define CHASSIS_DIAL_JUMP_WINDOW_MS       200U
+#define CHASSIS_DIAL_JUMP_THRESHOLD       66
+#define CHASSIS_DIAL_NORMAL_RAMP_RAD_S2   8.8f
+#define CHASSIS_DIAL_STOP_RAMP_RAD_S2     4.4f /* 满速目标约2s降到0。 */
+#define CHASSIS_DIAL_CENTER_HOLD_MS       2000U
+/* 新帧时间戳精确到ms，窗口内最多201个不同时间戳。 */
+#define CHASSIS_DIAL_HISTORY_LENGTH (CHASSIS_DIAL_JUMP_WINDOW_MS + 1U)
 /* 修改：匹配老工程低档的底盘转速约19.74 rpm，右上为正、右下为负。
  * 老工程5000控制量 -> 每轮1250 rpm -> /19 * 0.075/0.25 = 19.74底盘rpm。 */
 #define CHASSIS_SMALL_GYRO_MAX_RAD_S 2.067f
@@ -40,8 +49,8 @@
 #define CHASSIS_WHEEL_MAX_RPM       (CHASSIS_WHEEL_MAX_MPS * CHASSIS_MPS_TO_MOTOR_RPM)
 #define CHASSIS_CURRENT_MAX         14000.0f
 
-/* 实车车头与当前逻辑坐标相差180°；仅翻转平移，不改变原地旋转方向。 */
-#define CHASSIS_HEADING_REVERSED    1U
+/* 修改：主人实测枪口朝ID2/ID3之间时四个平移方向全反，取消额外180°翻转。 */
+#define CHASSIS_HEADING_REVERSED    0U
 
 #define CHASSIS_SPEED_KP 5.0f
 #define CHASSIS_SPEED_KI 0.05f
@@ -93,6 +102,27 @@ static uint16_t g_no_output_time_ms[4];
 static uint32_t g_diagonal_test_elapsed_ms;
 static uint32_t g_navigation_entry_frame_count;
 static float g_small_gyro_wz_command;
+
+typedef struct
+{
+    uint32_t tick_ms;
+    int16_t input;
+} chassis_dial_sample_t;
+
+/* 修改：拨轮突变接管只保存目标速度，不改变原速度PID和拨弹逻辑。 */
+static struct
+{
+    float wz_command;
+    uint32_t update_tick_ms;
+    uint32_t frame_tick_ms;
+    uint32_t center_tick_ms;
+    uint16_t history_head;
+    uint16_t history_count;
+    uint8_t active;
+    uint8_t takeover;
+    uint8_t centering;
+} g_dial;
+static chassis_dial_sample_t g_dial_history[CHASSIS_DIAL_HISTORY_LENGTH];
 
 /* 新车头相对原定义转180度；数组下标仍按CAN ID1～ID4排列。 */
 enum
@@ -162,6 +192,137 @@ static float Chassis_DeadbandNormalize(int16_t input)
         return 0.0f;
     }
     return (float)input / CHASSIS_RC_RANGE;
+}
+
+static void Chassis_DialRotationReset(void)
+{
+    g_dial.wz_command = 0.0f;
+    g_dial.active = 0U;
+    g_dial.takeover = 0U;
+    g_dial.centering = 0U;
+    g_dial.history_head = 0U;
+    g_dial.history_count = 0U;
+}
+
+static uint8_t Chassis_DialJumpDetected(int16_t input, uint32_t frame_tick_ms)
+{
+    uint16_t index;
+    uint16_t i;
+
+    /* 修改：比较滚动200ms内的新帧，缓慢分多帧变化也会累计检测。 */
+    while ((g_dial.history_count != 0U) &&
+           ((uint32_t)(frame_tick_ms -
+             g_dial_history[g_dial.history_head].tick_ms) >
+            CHASSIS_DIAL_JUMP_WINDOW_MS))
+    {
+        g_dial.history_head = (uint16_t)((g_dial.history_head + 1U) %
+                                       CHASSIS_DIAL_HISTORY_LENGTH);
+        g_dial.history_count--;
+    }
+    for (i = 0U; i < g_dial.history_count; i++)
+    {
+        index = (uint16_t)((g_dial.history_head + i) %
+                          CHASSIS_DIAL_HISTORY_LENGTH);
+        if (Chassis_AbsInt16(input - g_dial_history[index].input) >=
+            CHASSIS_DIAL_JUMP_THRESHOLD)
+        {
+            return 1U;
+        }
+    }
+    index = (uint16_t)((g_dial.history_head + g_dial.history_count) %
+                      CHASSIS_DIAL_HISTORY_LENGTH);
+    g_dial_history[index].tick_ms = frame_tick_ms;
+    g_dial_history[index].input = input;
+    g_dial.history_count++;
+    return 0U;
+}
+
+static float Chassis_DialRotationUpdate(const remote_control_t *remote,
+                                       uint32_t now_ms)
+{
+    int16_t input = remote->channel[4];
+    float target = 0.0f;
+    float step;
+    float dt;
+
+    if (g_dial.active == 0U)
+    {
+        g_dial.active = 1U;
+        g_dial.update_tick_ms = now_ms;
+        g_dial.frame_tick_ms = remote->update_tick_ms;
+        /* 修改：进入该档位时拨轮已偏离中位，先保持0并等待回中满2s。 */
+        g_dial.takeover = (uint8_t)(Chassis_AbsInt16(input) > CHASSIS_RC_DEADBAND);
+        (void)Chassis_DialJumpDetected(input, remote->update_tick_ms);
+        return 0.0f;
+    }
+
+    dt = (float)(uint32_t)(now_ms - g_dial.update_tick_ms) * 0.001f;
+    g_dial.update_tick_ms = now_ms;
+    if (remote->update_tick_ms != g_dial.frame_tick_ms)
+    {
+        g_dial.frame_tick_ms = remote->update_tick_ms;
+        if (g_dial.takeover != 0U)
+        {
+            /* 修改：目标归零后才用新回中帧计时，偏离中位就重新计时。
+             * 减速途中提前回中、重复读取旧帧，都不能提前交还控制权。 */
+            if ((g_dial.wz_command == 0.0f) &&
+                (Chassis_AbsInt16(input) <= CHASSIS_RC_DEADBAND))
+            {
+                if (g_dial.centering == 0U)
+                {
+                    g_dial.centering = 1U;
+                    g_dial.center_tick_ms = remote->update_tick_ms;
+                }
+                else if ((uint32_t)(remote->update_tick_ms - g_dial.center_tick_ms) >=
+                         CHASSIS_DIAL_CENTER_HOLD_MS)
+                {
+                    g_dial.takeover = 0U;
+                    g_dial.centering = 0U;
+                    g_dial.history_head = 0U;
+                    g_dial.history_count = 0U;
+                    (void)Chassis_DialJumpDetected(input, remote->update_tick_ms);
+                }
+            }
+            else
+            {
+                g_dial.centering = 0U;
+            }
+        }
+        else if (Chassis_DialJumpDetected(input, remote->update_tick_ms) != 0U)
+        {
+            g_dial.takeover = 1U;
+            g_dial.centering = 0U;
+        }
+    }
+
+    if (g_dial.takeover == 0U)
+    {
+        target = Chassis_DeadbandNormalize(input) * CHASSIS_ROTATION_MAX_RAD_S;
+        if (target > CHASSIS_ROTATION_MAX_RAD_S)
+        {
+            target = CHASSIS_ROTATION_MAX_RAD_S;
+        }
+        else if (target < -CHASSIS_ROTATION_MAX_RAD_S)
+        {
+            target = -CHASSIS_ROTATION_MAX_RAD_S;
+        }
+    }
+    /* 修改：按真实控制间隔渐变；接管从当前目标连续减速，忽略拨轮后续指令。 */
+    step = ((g_dial.takeover != 0U) ? CHASSIS_DIAL_STOP_RAMP_RAD_S2 :
+            CHASSIS_DIAL_NORMAL_RAMP_RAD_S2) * dt;
+    if (g_dial.wz_command < target - step)
+    {
+        g_dial.wz_command += step;
+    }
+    else if (g_dial.wz_command > target + step)
+    {
+        g_dial.wz_command -= step;
+    }
+    else
+    {
+        g_dial.wz_command = target;
+    }
+    return g_dial.wz_command;
 }
 
 static uint8_t Chassis_GetDiagonalTestCommand(float *vx, float *vy, float *wz)
@@ -318,6 +479,8 @@ void Chassis_Stop(void)
     g_chassis_debug.small_gyro_active = 0U;
     g_small_gyro_wz_command = 0.0f;
     g_chassis_debug.enabled = 0U;
+    /* 修改：失联、停控等仍立即停车，同时清除拨轮渐变状态。 */
+    Chassis_DialRotationReset();
     status = DJI_Motor_SendChassisCurrent(&hcan1, 0, 0, 0, 0);
     if (status != HAL_OK)
     {
@@ -468,13 +631,24 @@ void Chassis_Update(void)
                             CHASSIS_FORWARD_MAX_MPS;
             float right = -Chassis_DeadbandNormalize(remote.channel[2]) *
                            CHASSIS_STRAFE_MAX_MPS;
-            float relative_yaw_rad = g_chassis_debug.gimbal_heading_deg *
+            float translation_speed = sqrtf(forward * forward + right * right);
+            /* 修改：实测前后朝向正确、左右朝向全反；换算入口反向使用回传角。
+             * 只改变平移坐标映射，遥测仍显示协议原始角度。 */
+            float relative_yaw_rad = -g_chassis_debug.gimbal_heading_deg *
                                      PI_F / 180.0f;
             float heading_cos = cosf(relative_yaw_rad);
             float heading_sin = sinf(relative_yaw_rad);
 
-            /* 修改：普通行进/小陀螺共用枪口方向平移；+X前、+Y右、角度逆时针正。
-             * 此处只作坐标变换，下方保留唯一一次原车头180度安装修正。 */
+            /* 修改：斜移按合速度限幅到3.5m/s，保持摇杆方向，避免两轴满杆叠加超速。 */
+            if (translation_speed > CHASSIS_TRANSLATION_MAX_MPS)
+            {
+                float scale = CHASSIS_TRANSLATION_MAX_MPS / translation_speed;
+                forward *= scale;
+                right *= scale;
+            }
+
+            /* 修改：普通行进/小陀螺共用枪口方向平移；+X前、+Y右。
+             * relative_yaw_rad已完成回传角到运动学角的符号转换，默认不作180°翻转。 */
             vx = forward * heading_cos + right * heading_sin;
             vy = -forward * heading_sin + right * heading_cos;
             if (remote.switch_position[RC_S_LEFT] == RC_SW_UP)
@@ -482,6 +656,8 @@ void Chassis_Update(void)
                 float target_small_gyro_wz = 0.0f;
                 float step = CHASSIS_SMALL_GYRO_RAMP_RAD_S_PER_S *
                              ((float)CHASSIS_CONTROL_PERIOD_MS * 0.001f);
+
+                Chassis_DialRotationReset();
 
                 /* 修改：右上正转、右下反转、右中只停自转，左摇杆仍按枪口方向平移。 */
                 if (remote.switch_position[RC_S_RIGHT] == RC_SW_UP)
@@ -514,13 +690,24 @@ void Chassis_Update(void)
             else
             {
                 g_small_gyro_wz_command = 0.0f;
-                wz = Chassis_DeadbandNormalize(remote.channel[4]) * CHASSIS_ROTATION_MAX_RAD_S;
+                /* 修改：左中右中/右上时拨轮独占拨弹，底盘只保留摇杆平移。
+                 * 左中右下时拨轮继续控制底盘旋转，满量程8.8rad/s。 */
+                wz = 0.0f;
+                if (remote.switch_position[RC_S_RIGHT] == RC_SW_DOWN)
+                {
+                    wz = Chassis_DialRotationUpdate(&remote, now_ms);
+                }
+                else
+                {
+                    /* 修改：拨轮交给拨弹时，底盘旋转立即归零并清除接管状态。 */
+                    Chassis_DialRotationReset();
+                }
                 g_chassis_debug.small_gyro_active = 0U;
             }
         }
 
 #if CHASSIS_HEADING_REVERSED
-        /* 当前逻辑车头与实车车头相反：前后、左右平移一起取反，旋转保持原方向。 */
+        /* 兼容旧车头安装：启用时翻转全部平移方向，旋转保持原方向。 */
         vx = -vx;
         vy = -vy;
 #endif
